@@ -24,7 +24,6 @@ from nerlex.spec import (
 )
 from nerlex.trace import TraceRecord
 
-
 CHOICE_SPEC = DecisionSpec(
     decision_id="support-routing",
     version="1",
