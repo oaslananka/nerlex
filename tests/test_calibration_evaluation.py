@@ -5,6 +5,7 @@ from uuid import UUID
 
 import pytest
 
+import nerlex.evaluation as evaluation_module
 from nerlex.calibration import (
     CalibrationError,
     TemperatureCalibrationConfig,
@@ -123,6 +124,7 @@ def test_temperature_calibration_is_deterministic_and_uses_calibration_lineage(
     )
     assert first.calibration_count == len(snapshot.examples[DatasetSplit.CALIBRATION])
     assert first.temperature > 0.0
+    assert first.classes == tuple(sorted(first.classes))
 
     path = write_calibration_artifact(first, tmp_path)
     assert load_calibration_artifact(path) == first
@@ -217,6 +219,24 @@ def test_empirical_gate_is_fit_on_calibration_and_report_is_reproducible(
     report_path = write_evaluation_report(first, tmp_path)
     assert load_gate_artifact(gate_path) == gate
     assert load_evaluation_report(report_path) == first
+
+
+
+def test_evaluation_reuses_raw_prediction_for_calibration(monkeypatch: pytest.MonkeyPatch) -> None:
+    snapshot, compiler, calibration = _compiler_and_calibration()
+    original_predict = evaluation_module.predict
+    calls = 0
+
+    def counting_predict(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return original_predict(*args, **kwargs)
+
+    monkeypatch.setattr(evaluation_module, "predict", counting_predict)
+
+    evaluate(compiler, calibration, snapshot)
+
+    assert calls == len(snapshot.examples[DatasetSplit.TEST])
 
 
 def test_metrics_remain_finite_for_out_of_vocabulary_test_inputs() -> None:
