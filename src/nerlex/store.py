@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 from uuid import UUID
 
 from nerlex.hashing import canonical_json, sha256_hex
 from nerlex.spec import DecisionRequest, DecisionResult, DecisionSpec, LabelObservation
-
 
 SCHEMA_VERSION = 1
 
