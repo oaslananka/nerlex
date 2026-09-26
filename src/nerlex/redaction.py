@@ -12,9 +12,8 @@ def redact_state(
 ) -> dict[str, Any] | str:
     """Return a copy of state with configured dotted paths redacted.
 
-    Sensitive paths are relative to the structured decision state. If sensitive
-    fields are configured for an unstructured string state, capture fails closed
-    because field-level redaction is impossible.
+    Dotted paths support mapping keys, numeric list indexes, and implicit traversal
+    across list items. Malformed paths fail closed instead of silently changing meaning.
     """
     if not sensitive_fields:
         return deepcopy(state)
@@ -27,20 +26,43 @@ def redact_state(
 
     redacted = deepcopy(state)
     for path in sensitive_fields:
-        _redact_path(redacted, path)
+        _redact_parts(redacted, _parse_path(path))
     return redacted
 
 
-def _redact_path(value: dict[str, Any], dotted_path: str) -> None:
-    parts = [part for part in dotted_path.split(".") if part]
+def _parse_path(dotted_path: str) -> tuple[str, ...]:
+    parts = tuple(dotted_path.split("."))
+    if not parts or any(not part for part in parts):
+        raise ValueError(f"Malformed sensitive field path: {dotted_path!r}.")
+    return parts
+
+
+def _redact_parts(current: Any, parts: tuple[str, ...]) -> None:
     if not parts:
-        raise ValueError("Sensitive field paths must not be empty.")
+        return
 
-    current: Any = value
-    for part in parts[:-1]:
-        if not isinstance(current, dict) or part not in current:
+    head, *tail_items = parts
+    tail = tuple(tail_items)
+
+    if isinstance(current, dict):
+        if head not in current:
             return
-        current = current[part]
+        if not tail:
+            current[head] = REDACTED
+            return
+        _redact_parts(current[head], tail)
+        return
 
-    if isinstance(current, dict) and parts[-1] in current:
-        current[parts[-1]] = REDACTED
+    if isinstance(current, list):
+        if head.isdigit():
+            index = int(head)
+            if index >= len(current):
+                return
+            if not tail:
+                current[index] = REDACTED
+                return
+            _redact_parts(current[index], tail)
+            return
+
+        for item in current:
+            _redact_parts(item, parts)
