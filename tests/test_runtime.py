@@ -9,7 +9,6 @@ from nerlex.calibration import TemperatureCalibrationConfig, fit_temperature
 from nerlex.compiler import MultinomialNBConfig, compile_snapshot
 from nerlex.dataset import DatasetSplit, SnapshotConfig, SplitConfig, build_snapshot
 from nerlex.evaluation import (
-    EmpiricalRiskGateArtifact,
     EmpiricalRiskGateConfig,
     fit_empirical_risk_gate,
 )
@@ -196,11 +195,8 @@ def test_missing_fallback_returns_explicit_local_abstention() -> None:
 
 def test_runtime_bundle_fails_closed_on_lineage_mismatch() -> None:
     bundle = _bundle()
-    invalid_gate = EmpiricalRiskGateArtifact.model_construct(
-        **{
-            **bundle.gate.model_dump(mode="python"),
-            "compiler_artifact_id": "f" * 64,
-        }
+    invalid_gate = bundle.gate.model_copy(
+        update={"compiler_artifact_id": "f" * 64}
     )
 
     with pytest.raises(ValueError, match="compiler artifact"):
