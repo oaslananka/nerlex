@@ -71,7 +71,6 @@ def capture(
     metadata: dict[str, Any] | None = None,
 ) -> CaptureRun:
     """Capture one decision request before invoking the existing teacher path."""
-    store.initialize()
     store.register_spec(spec)
 
     request = DecisionRequest(
