@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import math
-import os
-import tempfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, model_validator
 
+from nerlex.artifact_io import write_immutable_atomic
 from nerlex.compiler import (
     CompilerArtifact,
     CompilerPrediction,
@@ -224,7 +223,7 @@ def write_calibration_artifact(
     root_path.mkdir(parents=True, exist_ok=True)
     destination = root_path / f"{artifact.artifact_id}.calibration.json"
     payload = (canonical_json(artifact) + "\n").encode("utf-8")
-    _atomic_immutable_write(destination, payload)
+    write_immutable_atomic(destination, payload)
     return destination
 
 
@@ -320,27 +319,3 @@ def _validate_rows(
         if set(probabilities) != expected:
             raise CalibrationError("Calibration prediction classes are inconsistent.")
 
-
-def _atomic_immutable_write(path: Path, payload: bytes) -> None:
-    if path.exists():
-        if path.read_bytes() != payload:
-            raise ValueError(f"Refusing to overwrite immutable artifact: {path.name}.")
-        return
-
-    temporary: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="wb",
-            dir=path.parent,
-            prefix=f".{path.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as handle:
-            temporary = Path(handle.name)
-            handle.write(payload)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, path)
-    finally:
-        if temporary is not None and temporary.exists():
-            temporary.unlink()
