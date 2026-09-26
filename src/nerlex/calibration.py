@@ -283,7 +283,9 @@ def _validate_lineage(
     if compiler_artifact.snapshot_id != snapshot.manifest.snapshot_id:
         raise CalibrationError("Compiler artifact and calibration snapshot IDs do not match.")
     if compiler_artifact.spec_hash != snapshot.manifest.spec_hash:
-        raise CalibrationError("Compiler artifact and calibration DecisionSpec hashes do not match.")
+        raise CalibrationError(
+            "Compiler artifact and calibration DecisionSpec hashes do not match."
+        )
 
 
 def _validate_calibration_for_compiler(
