@@ -1,6 +1,16 @@
 """Nerlex public Python API."""
 
 from nerlex.capture import CaptureRun, capture, observe_outcome
+from nerlex.compiler import (
+    CompilerArtifact,
+    CompilerConfig,
+    CompilerKind,
+    CompilerPrediction,
+    compile_snapshot,
+    load_compiler_artifact,
+    predict,
+    write_compiler_artifact,
+)
 from nerlex.dataset import (
     DatasetExample,
     DatasetSnapshot,
@@ -32,6 +42,10 @@ __all__ = [
     "Candidate",
     "CandidateMode",
     "CaptureRun",
+    "CompilerArtifact",
+    "CompilerConfig",
+    "CompilerKind",
+    "CompilerPrediction",
     "DatasetExample",
     "DatasetSnapshot",
     "DatasetSplit",
@@ -51,11 +65,15 @@ __all__ = [
     "TraceRecord",
     "build_snapshot",
     "capture",
+    "compile_snapshot",
     "export_jsonl",
+    "load_compiler_artifact",
     "load_jsonl",
     "observe_outcome",
+    "predict",
     "validate_request",
     "verify_snapshot",
+    "write_compiler_artifact",
     "write_snapshot",
 ]
 
