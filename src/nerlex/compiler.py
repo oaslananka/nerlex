@@ -10,7 +10,7 @@ from typing import Literal, Protocol
 
 from pydantic import Field, model_validator
 
-from nerlex.dataset import DatasetSnapshot, DatasetSplit
+from nerlex.dataset import DatasetExample, DatasetSnapshot, DatasetSplit
 from nerlex.hashing import canonical_json, sha256_hex
 from nerlex.spec import CandidateMode, DecisionKind, DecisionSpec, StrictModel
 
@@ -308,7 +308,7 @@ def load_compiler_artifact(path: str | Path) -> CompilerArtifact:
     return CompilerArtifact.model_validate_json(source.read_text(encoding="utf-8"))
 
 
-def _training_input(snapshot: DatasetSnapshot) -> tuple[DecisionSpec, tuple[object, ...]]:
+def _training_input(snapshot: DatasetSnapshot) -> tuple[DecisionSpec, tuple[DatasetExample, ...]]:
     spec = snapshot.manifest.decision_spec
     if spec.kind is not DecisionKind.CHOICE:
         raise CompilerError("v0.1 local compilers support choice decisions only.")
