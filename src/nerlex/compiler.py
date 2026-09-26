@@ -325,22 +325,22 @@ def write_compiler_artifact(
             raise ValueError("Refusing to overwrite a compiler artifact with different content.")
         return destination
 
-    handle = tempfile.NamedTemporaryFile(
-        mode="wb",
-        dir=root_path,
-        prefix=f".{artifact.artifact_id}.",
-        suffix=".tmp",
-        delete=False,
-    )
-    temporary = Path(handle.name)
+    temporary: Path | None = None
     try:
-        with handle:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=root_path,
+            prefix=f".{artifact.artifact_id}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            temporary = Path(handle.name)
             handle.write(payload)
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary, destination)
     finally:
-        if temporary.exists():
+        if temporary is not None and temporary.exists():
             temporary.unlink()
     return destination
 
