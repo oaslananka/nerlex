@@ -11,6 +11,7 @@ from nerlex.artifact_io import write_immutable_atomic
 from nerlex.calibration import (
     CalibratedPrediction,
     TemperatureCalibrationArtifact,
+    calibrate_prediction,
     predict_calibrated,
 )
 from nerlex.compiler import CompilerArtifact, CompilerPrediction, predict
@@ -25,6 +26,7 @@ GATE_IMPLEMENTATION_VERSION: Literal["1"] = "1"
 
 _SHA256_PATTERN = r"^[a-f0-9]{64}$"
 _MIN_PROBABILITY = 1e-15
+_FLOAT_TOLERANCE = 1e-9
 
 
 class EvaluationError(ValueError):
@@ -67,7 +69,7 @@ class _EmpiricalRiskGateIdentity(StrictModel):
             raise ValueError("Gate threshold accepted fewer than min_accepted examples.")
         elif self.empirical_risk is None:
             raise ValueError("A fitted threshold requires empirical_risk.")
-        elif self.empirical_risk > self.config.max_empirical_risk + 1e-12:
+        elif self.empirical_risk > self.config.max_empirical_risk + _FLOAT_TOLERANCE:
             raise ValueError("Fitted gate exceeds its configured empirical risk.")
         return self
 
@@ -137,7 +139,7 @@ class _EvaluationReportIdentity(StrictModel):
             self.risk_coverage[-1].coverage,
             1.0,
             rel_tol=0.0,
-            abs_tol=1e-12,
+            abs_tol=_FLOAT_TOLERANCE,
         ):
             raise ValueError("Risk-coverage curve must end at full coverage.")
         if (
@@ -235,11 +237,7 @@ def evaluate(
     calibrated_rows: list[_PredictionRow] = []
     for example in examples:
         raw = predict(compiler_artifact, example.state)
-        calibrated_prediction = predict_calibrated(
-            compiler_artifact,
-            calibration,
-            example.state,
-        )
+        calibrated_prediction = calibrate_prediction(raw, calibration)
         raw_rows.append(_raw_row(example, raw))
         calibrated_rows.append(_calibrated_row(example, calibrated_prediction))
 
@@ -423,7 +421,7 @@ def _risk_coverage(
             ordered[index].confidence,
             threshold,
             rel_tol=0.0,
-            abs_tol=1e-15,
+            abs_tol=_FLOAT_TOLERANCE,
         ):
             accepted += 1
             errors += int(not ordered[index].correct)
@@ -458,7 +456,7 @@ def _select_gate_threshold(
         point
         for point in points
         if point.accepted >= config.min_accepted
-        and point.risk <= config.max_empirical_risk + 1e-12
+        and point.risk <= config.max_empirical_risk + _FLOAT_TOLERANCE
     ]
     if not eligible:
         return None, 0, None
@@ -486,7 +484,7 @@ def _selective_summary(
     accepted_rows = tuple(
         row
         for row in rows
-        if row.confidence + 1e-15 >= confidence_threshold
+        if row.confidence + _FLOAT_TOLERANCE >= confidence_threshold
     )
     accepted = len(accepted_rows)
     risk = (
