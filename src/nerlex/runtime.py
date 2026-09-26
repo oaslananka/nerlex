@@ -65,7 +65,9 @@ class RuntimeBundle(StrictModel):
         gate = self.gate
 
         if calibration.compiler_artifact_id != compiler.artifact_id:
-            raise RuntimeArtifactError("Calibration artifact does not belong to the compiler artifact.")
+            raise RuntimeArtifactError(
+                "Calibration artifact does not belong to the compiler artifact."
+            )
         if calibration.snapshot_id != compiler.snapshot_id:
             raise RuntimeArtifactError("Calibration/compiler snapshot IDs do not match.")
         if calibration.classes != tuple(sorted(compiler.model.classes)):
