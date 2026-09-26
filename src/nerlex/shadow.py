@@ -106,6 +106,26 @@ class ShadowSummary(StrictModel):
             raise ValueError("Truth-correct count exceeds truth-labeled count.")
         if self.eligible_truth_correct > self.eligible_truth_labeled:
             raise ValueError("Eligible truth-correct count exceeds labeled eligible count.")
+
+        matrix = self.route_outcome
+        eligible_matrix_total = (
+            matrix.local_eligible_correct
+            + matrix.local_eligible_incorrect
+            + matrix.local_eligible_unlabeled
+        )
+        fallback_matrix_total = (
+            matrix.fallback_required_would_be_correct
+            + matrix.fallback_required_would_be_incorrect
+            + matrix.fallback_required_unlabeled
+        )
+        if eligible_matrix_total != self.local_eligible:
+            raise ValueError("Eligible route/outcome counts do not match local_eligible.")
+        if fallback_matrix_total != self.fallback_required:
+            raise ValueError(
+                "Fallback route/outcome counts do not match fallback_required."
+            )
+        if self.teacher_comparable + self.teacher_ambiguous > self.total:
+            raise ValueError("Teacher evidence counts exceed total.")
         return self
 
 
@@ -121,6 +141,19 @@ class _ShadowReportIdentity(StrictModel):
     config: ShadowConfig
     decisions: tuple[ShadowDecision, ...]
     summary: ShadowSummary
+
+    @model_validator(mode="after")
+    def _validate_report_shape(self) -> _ShadowReportIdentity:
+        if self.source_trace_count != len(self.decisions):
+            raise ValueError("source_trace_count must match shadow decision count.")
+        if self.summary.total != len(self.decisions):
+            raise ValueError("Shadow summary total must match decision count.")
+        request_ids = tuple(decision.request_id for decision in self.decisions)
+        if len(request_ids) != len(set(request_ids)):
+            raise ValueError("Shadow report contains duplicate request IDs.")
+        if request_ids != tuple(sorted(request_ids, key=str)):
+            raise ValueError("Shadow report decisions must be sorted by request ID.")
+        return self
 
 
 class ShadowReport(_ShadowReportIdentity):
