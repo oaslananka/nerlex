@@ -163,6 +163,7 @@ def build_snapshot(
             label_source=resolved.source,
             label_provenance=resolved.provenance,
         )
+        _validate_example(spec, example)
         buckets[_assign_split(request.request_id, resolved_config.split)].append(example)
 
     for values in buckets.values():
