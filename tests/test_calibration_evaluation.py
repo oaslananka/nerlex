@@ -1,21 +1,19 @@
 from __future__ import annotations
 
 from pathlib import Path
-from uuid import UUID
 
 import pytest
 
 import nerlex.evaluation as evaluation_module
 from nerlex.calibration import (
     CalibrationError,
-    TemperatureCalibrationConfig,
     fit_temperature,
     load_calibration_artifact,
     predict_calibrated,
     write_calibration_artifact,
 )
 from nerlex.compiler import MultinomialNBConfig, compile_snapshot, predict
-from nerlex.dataset import DatasetSplit, SnapshotConfig, SplitConfig, build_snapshot
+from nerlex.dataset import DatasetSplit
 from nerlex.evaluation import (
     EmpiricalRiskGateConfig,
     EvaluationConfig,
@@ -26,84 +24,15 @@ from nerlex.evaluation import (
     write_evaluation_report,
     write_gate_artifact,
 )
-from nerlex.spec import (
-    Candidate,
-    CandidateMode,
-    DecisionKind,
-    DecisionRequest,
-    DecisionSpec,
-    LabelObservation,
-    LabelSource,
-)
-from nerlex.trace import TraceRecord
-
-
-def _spec() -> DecisionSpec:
-    return DecisionSpec(
-        decision_id="support-routing",
-        version="1",
-        kind=DecisionKind.CHOICE,
-        description="Route support requests.",
-        candidate_mode=CandidateMode.STATIC,
-        candidates=(
-            Candidate(key="billing", description="Payments and refunds."),
-            Candidate(key="technical", description="Product and software problems."),
-        ),
-    )
-
-
-def _trace(index: int) -> TraceRecord:
-    request_id = UUID(int=index + 1)
-    if index % 2 == 0:
-        label = "billing"
-        text = f"invoice refund payment card billing-marker-{index}"
-    else:
-        label = "technical"
-        text = f"crash error bug software technical-marker-{index}"
-
-    return TraceRecord(
-        request=DecisionRequest(
-            request_id=request_id,
-            decision_id="support-routing",
-            spec_version="1",
-            state=text,
-        ),
-        labels=(
-            LabelObservation(
-                observation_id=UUID(int=20_000 + index),
-                request_id=request_id,
-                source=LabelSource.OUTCOME,
-                value=label,
-                source_id="fixture",
-            ),
-        ),
-    )
+from tests.support import support_compiler_calibration, support_snapshot
 
 
 def _snapshot():
-    return build_snapshot(
-        _spec(),
-        [_trace(index) for index in range(240)],
-        config=SnapshotConfig(
-            split=SplitConfig(
-                train=0.60,
-                calibration=0.20,
-                test=0.20,
-                seed="calibration-evaluation-test",
-            )
-        ),
-    )
+    return support_snapshot(seed="calibration-evaluation-test")
 
 
 def _compiler_and_calibration():
-    snapshot = _snapshot()
-    compiler = compile_snapshot(snapshot, MultinomialNBConfig())
-    calibration = fit_temperature(
-        compiler,
-        snapshot,
-        config=TemperatureCalibrationConfig(iterations=64),
-    )
-    return snapshot, compiler, calibration
+    return support_compiler_calibration(seed="calibration-evaluation-test")
 
 
 def test_temperature_calibration_is_deterministic_and_uses_calibration_lineage(
@@ -164,9 +93,9 @@ def test_calibration_artifact_tampering_fails_closed(tmp_path: Path) -> None:
 
 def test_calibration_rejects_snapshot_lineage_mismatch() -> None:
     snapshot, compiler, _ = _compiler_and_calibration()
-    different_snapshot = build_snapshot(
-        _spec(),
-        [_trace(index) for index in range(240, 480)],
+    different_snapshot = support_snapshot(
+        seed="calibration-evaluation-test",
+        start_index=240,
         config=snapshot.manifest.config,
     )
 
@@ -221,8 +150,9 @@ def test_empirical_gate_is_fit_on_calibration_and_report_is_reproducible(
     assert load_evaluation_report(report_path) == first
 
 
-
-def test_evaluation_reuses_raw_prediction_for_calibration(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_evaluation_reuses_raw_prediction_for_calibration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     snapshot, compiler, calibration = _compiler_and_calibration()
     original_predict = evaluation_module.predict
     calls = 0
