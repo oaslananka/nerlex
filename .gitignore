@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environments
+.venv/
+.env
+.env.*
+
+# Nerlex local state
+.nerlex/
+*.db
+*.db-shm
+*.db-wal
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

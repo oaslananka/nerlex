@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nerlex"
+version = "0.1.0.dev0"
+description = "Compile repetitive AI decisions into calibrated local reflexes"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+authors = [
+  { name = "Osman Aslan" }
+]
+keywords = [
+  "ai",
+  "machine-learning",
+  "decision-making",
+  "calibration",
+  "selective-prediction",
+  "mlops",
+]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Typing :: Typed",
+]
+dependencies = [
+  "pydantic>=2.10,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+  "build>=1.2,<2",
+  "mypy>=1.15,<2",
+  "pytest>=8.3,<10",
+  "ruff>=0.13,<1",
+]
+
+[project.scripts]
+nerlex = "nerlex.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["nerlex"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["nerlex"]
