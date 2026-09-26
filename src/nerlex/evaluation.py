@@ -140,9 +140,11 @@ class _EvaluationReportIdentity(StrictModel):
             abs_tol=1e-12,
         ):
             raise ValueError("Risk-coverage curve must end at full coverage.")
-        if self.selective is not None:
-            if self.selective.accepted + self.selective.abstained != self.test_count:
-                raise ValueError("Selective counts must match test_count.")
+        if (
+            self.selective is not None
+            and self.selective.accepted + self.selective.abstained != self.test_count
+        ):
+            raise ValueError("Selective counts must match test_count.")
         return self
 
 
