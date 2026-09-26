@@ -1,6 +1,19 @@
 """Nerlex public Python API."""
 
 from nerlex.capture import CaptureRun, capture, observe_outcome
+from nerlex.compiler import (
+    CentroidCompiler,
+    CentroidConfig,
+    CompilerArtifact,
+    CompilerError,
+    CompilerPrediction,
+    MultinomialNBCompiler,
+    MultinomialNBConfig,
+    compile_snapshot,
+    load_compiler_artifact,
+    predict,
+    write_compiler_artifact,
+)
 from nerlex.dataset import (
     DatasetExample,
     DatasetSnapshot,
@@ -32,6 +45,11 @@ __all__ = [
     "Candidate",
     "CandidateMode",
     "CaptureRun",
+    "CentroidCompiler",
+    "CentroidConfig",
+    "CompilerArtifact",
+    "CompilerError",
+    "CompilerPrediction",
     "DatasetExample",
     "DatasetSnapshot",
     "DatasetSplit",
@@ -42,6 +60,8 @@ __all__ = [
     "DecisionSpec",
     "LabelObservation",
     "LabelSource",
+    "MultinomialNBCompiler",
+    "MultinomialNBConfig",
     "ResultObservation",
     "SQLiteTraceStore",
     "SnapshotConfig",
@@ -50,12 +70,16 @@ __all__ = [
     "SplitConfig",
     "TraceRecord",
     "build_snapshot",
+    "compile_snapshot",
     "capture",
     "export_jsonl",
+    "load_compiler_artifact",
     "load_jsonl",
     "observe_outcome",
+    "predict",
     "validate_request",
     "verify_snapshot",
+    "write_compiler_artifact",
     "write_snapshot",
 ]
 
