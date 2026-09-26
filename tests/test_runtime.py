@@ -5,13 +5,8 @@ from uuid import UUID
 
 import pytest
 
-from nerlex.calibration import TemperatureCalibrationConfig, fit_temperature
-from nerlex.compiler import MultinomialNBConfig, compile_snapshot
-from nerlex.dataset import DatasetSplit, SnapshotConfig, SplitConfig, build_snapshot
-from nerlex.evaluation import (
-    EmpiricalRiskGateConfig,
-    fit_empirical_risk_gate,
-)
+from nerlex.dataset import DatasetSplit
+from nerlex.evaluation import EmpiricalRiskGateConfig, fit_empirical_risk_gate
 from nerlex.runtime import (
     FallbackDecision,
     FallbackExecutionError,
@@ -21,59 +16,8 @@ from nerlex.runtime import (
     RuntimeConfig,
     RuntimeRequestError,
 )
-from nerlex.spec import (
-    Candidate,
-    CandidateMode,
-    DecisionKind,
-    DecisionRequest,
-    DecisionRoute,
-    DecisionSpec,
-    LabelObservation,
-    LabelSource,
-)
-from nerlex.trace import TraceRecord
-
-
-def _spec() -> DecisionSpec:
-    return DecisionSpec(
-        decision_id="support-routing",
-        version="1",
-        kind=DecisionKind.CHOICE,
-        description="Route support requests.",
-        candidate_mode=CandidateMode.STATIC,
-        candidates=(
-            Candidate(key="billing", description="Payments and refunds."),
-            Candidate(key="technical", description="Product and software problems."),
-        ),
-    )
-
-
-def _trace(index: int) -> TraceRecord:
-    request_id = UUID(int=index + 1)
-    if index % 2 == 0:
-        label = "billing"
-        state = f"invoice refund card payment billing-{index}"
-    else:
-        label = "technical"
-        state = f"crash bug error software technical-{index}"
-
-    return TraceRecord(
-        request=DecisionRequest(
-            request_id=request_id,
-            decision_id="support-routing",
-            spec_version="1",
-            state=state,
-        ),
-        labels=(
-            LabelObservation(
-                observation_id=UUID(int=50_000 + index),
-                request_id=request_id,
-                source=LabelSource.OUTCOME,
-                value=label,
-                source_id="runtime-fixture",
-            ),
-        ),
-    )
+from nerlex.spec import DecisionRequest, DecisionRoute
+from tests.support import support_compiler_calibration
 
 
 def _bundle(
@@ -81,24 +25,7 @@ def _bundle(
     abstain_all: bool = False,
     seed: str = "runtime-test",
 ) -> RuntimeBundle:
-    snapshot = build_snapshot(
-        _spec(),
-        [_trace(index) for index in range(240)],
-        config=SnapshotConfig(
-            split=SplitConfig(
-                train=0.60,
-                calibration=0.20,
-                test=0.20,
-                seed=seed,
-            )
-        ),
-    )
-    compiler = compile_snapshot(snapshot, MultinomialNBConfig())
-    calibration = fit_temperature(
-        compiler,
-        snapshot,
-        config=TemperatureCalibrationConfig(iterations=64),
-    )
+    snapshot, compiler, calibration = support_compiler_calibration(seed=seed)
     calibration_count = len(snapshot.examples[DatasetSplit.CALIBRATION])
     gate = fit_empirical_risk_gate(
         compiler,
