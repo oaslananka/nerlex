@@ -9,7 +9,7 @@ import pytest
 
 from nerlex.calibration import TemperatureCalibrationConfig, fit_temperature
 from nerlex.compiler import MultinomialNBConfig, compile_snapshot
-from nerlex.dataset import SnapshotConfig, SplitConfig, build_snapshot
+from nerlex.dataset import DatasetSplit, SnapshotConfig, SplitConfig, build_snapshot
 from nerlex.evaluation import EmpiricalRiskGateConfig, fit_empirical_risk_gate
 from nerlex.runtime import RuntimeBundle
 from nerlex.shadow import (
@@ -53,16 +53,8 @@ def _trace(index: int, *, with_truth: bool = True) -> TraceRecord:
     request_id = UUID(int=index + 1)
     billing = index % 2 == 0
     truth = "billing" if billing else "technical"
-    teacher = (
-        "technical" if truth == "billing" else "billing"
-        if index % 5 == 0
-        else truth
-    )
-    # Make the intended "every fifth trace disagrees" rule explicit rather than
-    # depending on conditional-expression precedence.
-    if index % 5 != 0:
-        teacher = truth
-    else:
+    teacher = truth
+    if index % 5 == 0:
         teacher = "technical" if truth == "billing" else "billing"
 
     request = DecisionRequest(
@@ -130,7 +122,7 @@ def _bundle(records: list[TraceRecord], *, abstain_all: bool = False) -> Runtime
         snapshot,
         config=TemperatureCalibrationConfig(iterations=64),
     )
-    calibration_count = snapshot.manifest.splits["calibration"].count
+    calibration_count = snapshot.manifest.splits[DatasetSplit.CALIBRATION].count
     gate = fit_empirical_risk_gate(
         compiler,
         calibration,
