@@ -4,10 +4,10 @@ from uuid import UUID
 import pytest
 
 from nerlex.dataset import (
-    build_snapshot,
     DatasetSplit,
     SnapshotConfig,
     SplitConfig,
+    build_snapshot,
     verify_snapshot,
     write_snapshot,
 )
@@ -23,7 +23,6 @@ from nerlex.spec import (
     LabelSource,
 )
 from nerlex.trace import ResultObservation, TraceRecord
-
 
 SPEC = DecisionSpec(
     decision_id="support-routing",
