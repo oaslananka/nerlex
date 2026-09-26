@@ -97,6 +97,8 @@ The initial public contracts live in:
 - `nerlex.spec` — typed decision/request/result/provenance models
 - `nerlex.hashing` — deterministic canonical serialization and hashing
 - `nerlex.store` — SQLite WAL trace-store foundation
+- `nerlex.capture` — capture, teacher-observation, outcome attachment, and redaction flow
+- `nerlex.dataset` — immutable dataset snapshots with deterministic train/calibration/test splits
 
 These APIs are still pre-1.0 and may change while the v0.1 lifecycle is built.
 
