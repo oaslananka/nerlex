@@ -199,7 +199,7 @@ def test_runtime_bundle_fails_closed_on_lineage_mismatch() -> None:
         update={"compiler_artifact_id": "f" * 64}
     )
 
-    with pytest.raises(ValueError, match="compiler artifact"):
+    with pytest.raises(ValueError, match="identity"):
         RuntimeBundle(
             compiler=bundle.compiler,
             calibration=bundle.calibration,
