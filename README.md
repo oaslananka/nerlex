@@ -83,6 +83,12 @@ pytest -q
 python -m build
 ```
 
+Run the local/fallback example:
+
+```bash
+python examples/local_fallback.py
+```
+
 CLI smoke test:
 
 ```bash
@@ -99,6 +105,10 @@ The initial public contracts live in:
 - `nerlex.store` — SQLite WAL trace-store foundation
 - `nerlex.capture` — capture, teacher-observation, outcome attachment, and redaction flow
 - `nerlex.dataset` — immutable dataset snapshots with deterministic train/calibration/test splits
+- `nerlex.compiler` — deterministic local compiler baselines and immutable compiler artifacts
+- `nerlex.calibration` — held-out temperature calibration
+- `nerlex.evaluation` — empirical gates, sealed metrics, risk/coverage and AURC
+- `nerlex.runtime` — calibrated local decisions with explicit abstention and provider-neutral fallback
 
 These APIs are still pre-1.0 and may change while the v0.1 lifecycle is built.
 
@@ -110,7 +120,7 @@ These APIs are still pre-1.0 and may change while the v0.1 lifecycle is built.
 4. Local compiler baselines
 5. Calibration and selective evaluation
 6. Artifact packaging
-7. Fallback runtime
+7. Local/fallback cascade runtime
 8. Shadow evaluation
 9. Promotion/canary lifecycle
 10. Portable optimized inference

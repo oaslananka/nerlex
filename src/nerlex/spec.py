@@ -101,6 +101,7 @@ class DecisionResult(StrictModel):
     backend: str = Field(min_length=1, max_length=256)
     backend_version: str | None = Field(default=None, max_length=256)
     artifact_id: str | None = Field(default=None, max_length=256)
+    artifact_ids: dict[str, str] = Field(default_factory=dict)
     latency_ms: float = Field(ge=0.0)
     route: DecisionRoute
     abstained: bool = False
@@ -109,6 +110,11 @@ class DecisionResult(StrictModel):
 
     @model_validator(mode="after")
     def _validate_probabilities(self) -> DecisionResult:
+        if any(
+            not key or not value or len(key) > 64 or len(value) > 256
+            for key, value in self.artifact_ids.items()
+        ):
+            raise ValueError("Artifact identity keys/values must be non-empty and bounded.")
         if any(value < 0.0 or value > 1.0 for value in self.probabilities.values()):
             raise ValueError("Probabilities must be in [0, 1].")
         if self.probabilities and abs(sum(self.probabilities.values()) - 1.0) > 1e-6:
