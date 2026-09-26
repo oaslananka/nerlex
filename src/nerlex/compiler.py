@@ -14,7 +14,6 @@ from nerlex.dataset import DatasetExample, DatasetSnapshot, DatasetSplit
 from nerlex.hashing import canonical_json, sha256_hex
 from nerlex.spec import CandidateMode, DecisionKind, DecisionSpec, StrictModel
 
-
 TOKENIZER_VERSION = "unicode-word-v1"
 COMPILER_ARTIFACT_SCHEMA_VERSION = 1
 COMPILER_IMPLEMENTATION_VERSION = "1"
