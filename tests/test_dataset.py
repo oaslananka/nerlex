@@ -206,3 +206,39 @@ def test_choice_label_must_exist_in_candidates() -> None:
 
     with pytest.raises(ValueError, match="not a valid candidate"):
         build_snapshot(SPEC, [record])
+
+
+def test_manifest_identity_tampering_is_rejected(tmp_path) -> None:
+    snapshot = build_snapshot(SPEC, [_trace(i) for i in range(10)])
+    path = write_snapshot(snapshot, tmp_path)
+    manifest_path = path / "manifest.json"
+    payload = manifest_path.read_text(encoding="utf-8")
+    manifest_path.write_text(
+        payload.replace(snapshot.manifest.snapshot_id, "0" * 64, 1),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="identity does not match"):
+        verify_snapshot(path)
+
+
+def test_manifest_rejects_unsafe_split_filename() -> None:
+    snapshot = build_snapshot(SPEC, [_trace(i) for i in range(10)])
+    payload = snapshot.manifest.model_dump(mode="json")
+    payload["splits"]["train"]["filename"] = "../train.jsonl"
+
+    with pytest.raises(ValueError, match="Unexpected filename"):
+        type(snapshot.manifest).model_validate(payload)
+
+
+def test_write_snapshot_is_idempotent_and_refuses_modified_existing_file(tmp_path) -> None:
+    snapshot = build_snapshot(SPEC, [_trace(i) for i in range(20)])
+    path = write_snapshot(snapshot, tmp_path)
+
+    assert write_snapshot(snapshot, tmp_path) == path
+
+    target = path / snapshot.manifest.splits[DatasetSplit.TEST].filename
+    target.write_bytes(target.read_bytes() + b"corruption")
+
+    with pytest.raises(ValueError, match="immutable snapshot file"):
+        write_snapshot(snapshot, tmp_path)
