@@ -100,6 +100,13 @@ def compile_snapshot(
     if not examples:
         raise ValueError("The train split is empty; cannot compile a local model.")
 
+    observed_labels = {_encode_label(example.label) for example in examples}
+    missing_labels = sorted(set(labels) - observed_labels)
+    if missing_labels:
+        raise ValueError(
+            "The train split has no examples for labels: " + ", ".join(missing_labels)
+        )
+
     if config.kind is CompilerKind.MULTINOMIAL_NB:
         payload = _train_multinomial_nb(examples, labels, config.alpha)
     elif config.kind is CompilerKind.CENTROID_COSINE:
