@@ -4,7 +4,7 @@ import hashlib
 from collections.abc import Iterable
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import Field, model_validator
@@ -74,7 +74,7 @@ class SplitArtifact(StrictModel):
 
 
 class SnapshotManifest(StrictModel):
-    schema_version: int = 1
+    schema_version: Literal[1] = 1
     snapshot_id: str = Field(pattern=r"^[a-f0-9]{64}$")
     decision_spec: DecisionSpec
     spec_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
@@ -166,7 +166,16 @@ def build_snapshot(
         "splits": artifacts,
     }
     snapshot_id = sha256_hex(manifest_core)
-    manifest = SnapshotManifest(snapshot_id=snapshot_id, **manifest_core)
+    manifest = SnapshotManifest(
+        snapshot_id=snapshot_id,
+        decision_spec=spec,
+        spec_hash=spec_hash,
+        config=resolved_config,
+        source_trace_count=source_trace_count,
+        included_count=included_count,
+        excluded_unlabeled_count=excluded_unlabeled_count,
+        splits=artifacts,
+    )
 
     return DatasetSnapshot(
         manifest=manifest,
