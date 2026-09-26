@@ -129,7 +129,10 @@ def test_compiler_reads_train_split_only() -> None:
     artifact = compile_snapshot(snapshot, MultinomialNBConfig())
 
     assert non_train_markers
-    assert all(marker not in artifact.model.vocabulary for marker in non_train_markers - train_markers)
+    assert all(
+        marker not in artifact.model.vocabulary
+        for marker in non_train_markers - train_markers
+    )
 
 
 def test_artifact_tampering_fails_closed(tmp_path: Path) -> None:
