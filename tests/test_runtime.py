@@ -76,7 +76,11 @@ def _trace(index: int) -> TraceRecord:
     )
 
 
-def _bundle(*, abstain_all: bool = False) -> RuntimeBundle:
+def _bundle(
+    *,
+    abstain_all: bool = False,
+    seed: str = "runtime-test",
+) -> RuntimeBundle:
     snapshot = build_snapshot(
         _spec(),
         [_trace(index) for index in range(240)],
@@ -85,7 +89,7 @@ def _bundle(*, abstain_all: bool = False) -> RuntimeBundle:
                 train=0.60,
                 calibration=0.20,
                 test=0.20,
-                seed="runtime-test",
+                seed=seed,
             )
         ),
     )
@@ -146,8 +150,8 @@ def test_below_threshold_request_defers_to_fallback() -> None:
             artifact_id="teacher-fixture-v1",
         )
 
-    runtime = LocalCascadeRuntime(bundle, fallback=fallback)
-    result = runtime.decide(_request("unseen neutral words without training markers"))
+    with LocalCascadeRuntime(bundle, fallback=fallback) as runtime:
+        result = runtime.decide(_request("unseen neutral words without training markers"))
 
     assert result.route is DecisionRoute.FALLBACK
     assert result.selected == "technical"
@@ -172,9 +176,8 @@ def test_abstain_all_gate_always_defers() -> None:
             backend="fixture-teacher",
         )
 
-    result = LocalCascadeRuntime(bundle, fallback=fallback).decide(
-        _request("refund invoice payment card")
-    )
+    with LocalCascadeRuntime(bundle, fallback=fallback) as runtime:
+        result = runtime.decide(_request("refund invoice payment card"))
 
     assert calls == 1
     assert result.route is DecisionRoute.FALLBACK
@@ -194,16 +197,14 @@ def test_missing_fallback_returns_explicit_local_abstention() -> None:
 
 
 def test_runtime_bundle_fails_closed_on_lineage_mismatch() -> None:
-    bundle = _bundle()
-    invalid_gate = bundle.gate.model_copy(
-        update={"compiler_artifact_id": "f" * 64}
-    )
+    bundle = _bundle(seed="runtime-primary")
+    other = _bundle(seed="runtime-other")
 
-    with pytest.raises(ValueError, match="identity"):
+    with pytest.raises(ValueError, match="compiler artifact"):
         RuntimeBundle(
             compiler=bundle.compiler,
             calibration=bundle.calibration,
-            gate=invalid_gate,
+            gate=other.gate,
         )
 
 
@@ -227,14 +228,13 @@ def test_fallback_timeout_is_explicit() -> None:
         time.sleep(0.05)
         return FallbackDecision(selected="billing", backend="slow-fixture")
 
-    runtime = LocalCascadeRuntime(
+    with LocalCascadeRuntime(
         bundle,
         fallback=slow_fallback,
         config=RuntimeConfig(fallback_timeout_seconds=0.01),
-    )
-
-    with pytest.raises(FallbackTimeoutError, match="exceeded"):
-        runtime.decide(_request("refund invoice"))
+    ) as runtime:
+        with pytest.raises(FallbackTimeoutError, match="exceeded"):
+            runtime.decide(_request("refund invoice"))
 
 
 def test_invalid_fallback_candidate_is_rejected() -> None:
@@ -243,7 +243,6 @@ def test_invalid_fallback_candidate_is_rejected() -> None:
     def invalid_fallback(_request: DecisionRequest) -> FallbackDecision:
         return FallbackDecision(selected="unknown", backend="bad-fixture")
 
-    runtime = LocalCascadeRuntime(bundle, fallback=invalid_fallback)
-
-    with pytest.raises(FallbackExecutionError, match="outside"):
-        runtime.decide(_request("refund invoice"))
+    with LocalCascadeRuntime(bundle, fallback=invalid_fallback) as runtime:
+        with pytest.raises(FallbackExecutionError, match="outside"):
+            runtime.decide(_request("refund invoice"))
