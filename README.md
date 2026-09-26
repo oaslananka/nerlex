@@ -99,8 +99,11 @@ The initial public contracts live in:
 - `nerlex.store` — SQLite WAL trace-store foundation
 - `nerlex.capture` — capture, teacher-observation, outcome attachment, and redaction flow
 - `nerlex.dataset` — immutable dataset snapshots with deterministic train/calibration/test splits
+- `nerlex.compiler` — safe JSON compiler artifacts plus deterministic Naive Bayes and centroid/cosine CPU baselines
 
 These APIs are still pre-1.0 and may change while the v0.1 lifecycle is built.
+
+The first compiler families are deliberately dependency-light baselines. They are not Jev-equivalent models and their softmax outputs are explicitly **uncalibrated**. Their purpose is to establish reproducible compile/artifact/inference contracts before stronger semantic backends and calibration are added.
 
 ## Roadmap
 
