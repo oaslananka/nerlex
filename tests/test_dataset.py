@@ -240,5 +240,5 @@ def test_write_snapshot_is_idempotent_and_refuses_modified_existing_file(tmp_pat
     target = path / snapshot.manifest.splits[DatasetSplit.TEST].filename
     target.write_bytes(target.read_bytes() + b"corruption")
 
-    with pytest.raises(ValueError, match="immutable snapshot file"):
+    with pytest.raises(ValueError, match="immutable artifact file"):
         write_snapshot(snapshot, tmp_path)
