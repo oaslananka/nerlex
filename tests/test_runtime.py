@@ -228,13 +228,15 @@ def test_fallback_timeout_is_explicit() -> None:
         time.sleep(0.05)
         return FallbackDecision(selected="billing", backend="slow-fixture")
 
-    with LocalCascadeRuntime(
-        bundle,
-        fallback=slow_fallback,
-        config=RuntimeConfig(fallback_timeout_seconds=0.01),
-    ) as runtime:
-        with pytest.raises(FallbackTimeoutError, match="exceeded"):
-            runtime.decide(_request("refund invoice"))
+    with (
+        LocalCascadeRuntime(
+            bundle,
+            fallback=slow_fallback,
+            config=RuntimeConfig(fallback_timeout_seconds=0.01),
+        ) as runtime,
+        pytest.raises(FallbackTimeoutError, match="exceeded"),
+    ):
+        runtime.decide(_request("refund invoice"))
 
 
 def test_invalid_fallback_candidate_is_rejected() -> None:
@@ -243,6 +245,8 @@ def test_invalid_fallback_candidate_is_rejected() -> None:
     def invalid_fallback(_request: DecisionRequest) -> FallbackDecision:
         return FallbackDecision(selected="unknown", backend="bad-fixture")
 
-    with LocalCascadeRuntime(bundle, fallback=invalid_fallback) as runtime:
-        with pytest.raises(FallbackExecutionError, match="outside"):
-            runtime.decide(_request("refund invoice"))
+    with (
+        LocalCascadeRuntime(bundle, fallback=invalid_fallback) as runtime,
+        pytest.raises(FallbackExecutionError, match="outside"),
+    ):
+        runtime.decide(_request("refund invoice"))
