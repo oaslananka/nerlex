@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from uuid import UUID
 
@@ -186,8 +187,9 @@ def test_dynamic_candidates_are_explicitly_unsupported() -> None:
         config=SnapshotConfig(split=SplitConfig(train=0.98, calibration=0.01, test=0.01)),
     )
 
+    config = MultinomialNBConfig()
     with pytest.raises(CompilerError, match="Dynamic candidate decisions"):
-        compile_snapshot(snapshot, MultinomialNBConfig())
+        compile_snapshot(snapshot, config)
 
 
 def test_loaded_artifact_validates_identity(tmp_path: Path) -> None:
@@ -198,3 +200,32 @@ def test_loaded_artifact_validates_identity(tmp_path: Path) -> None:
 
     assert isinstance(loaded, CompilerArtifact)
     assert loaded == artifact
+
+
+def test_centroid_oov_prediction_is_finite_and_uniform() -> None:
+    artifact = compile_snapshot(_snapshot(), CentroidConfig())
+
+    prediction = predict(artifact, {"text": "completely_unseen_oov_token"})
+
+    assert prediction.probabilities == pytest.approx(
+        {"billing": 0.5, "technical": 0.5}
+    )
+
+
+def test_multinomial_oov_prediction_uses_finite_class_priors() -> None:
+    artifact = compile_snapshot(_snapshot(), MultinomialNBConfig())
+
+    prediction = predict(artifact, {"text": "completely_unseen_oov_token"})
+
+    assert all(math.isfinite(value) for value in prediction.probabilities.values())
+    assert sum(prediction.probabilities.values()) == pytest.approx(1.0)
+
+
+def test_rewriting_identical_artifact_is_idempotent(tmp_path: Path) -> None:
+    artifact = compile_snapshot(_snapshot(), MultinomialNBConfig())
+
+    first = write_compiler_artifact(artifact, tmp_path)
+    second = write_compiler_artifact(artifact, tmp_path)
+
+    assert first == second
+    assert first.read_bytes() == second.read_bytes()
