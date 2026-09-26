@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
@@ -40,6 +41,11 @@ class RuntimeRequestError(LocalRuntimeError):
     """Raised when a request is incompatible with the compiled decision spec."""
 
 
+def _require_artifact_match(condition: bool, message: str) -> None:
+    if not condition:
+        raise RuntimeArtifactError(message)
+
+
 class FallbackExecutionError(LocalRuntimeError):
     """Raised when the configured fallback fails."""
 
@@ -64,25 +70,38 @@ class RuntimeBundle(StrictModel):
         calibration = self.calibration
         gate = self.gate
 
-        if calibration.compiler_artifact_id != compiler.artifact_id:
-            raise RuntimeArtifactError(
-                "Calibration artifact does not belong to the compiler artifact."
-            )
-        if calibration.snapshot_id != compiler.snapshot_id:
-            raise RuntimeArtifactError("Calibration/compiler snapshot IDs do not match.")
-        if calibration.classes != tuple(sorted(compiler.model.classes)):
-            raise RuntimeArtifactError("Calibration/compiler class sets do not match.")
-
-        if gate.compiler_artifact_id != compiler.artifact_id:
-            raise RuntimeArtifactError("Gate artifact does not belong to the compiler artifact.")
-        if gate.calibration_artifact_id != calibration.artifact_id:
-            raise RuntimeArtifactError("Gate artifact does not belong to the calibration artifact.")
-        if gate.snapshot_id != compiler.snapshot_id:
-            raise RuntimeArtifactError("Gate/compiler snapshot IDs do not match.")
-        if gate.calibration_sha256 != calibration.calibration_sha256:
-            raise RuntimeArtifactError("Gate/calibration split hashes do not match.")
-        if gate.calibration_count != calibration.calibration_count:
-            raise RuntimeArtifactError("Gate/calibration split counts do not match.")
+        _require_artifact_match(
+            calibration.compiler_artifact_id == compiler.artifact_id,
+            "Calibration artifact does not belong to the compiler artifact.",
+        )
+        _require_artifact_match(
+            calibration.snapshot_id == compiler.snapshot_id,
+            "Calibration/compiler snapshot IDs do not match.",
+        )
+        _require_artifact_match(
+            calibration.classes == tuple(sorted(compiler.model.classes)),
+            "Calibration/compiler class sets do not match.",
+        )
+        _require_artifact_match(
+            gate.compiler_artifact_id == compiler.artifact_id,
+            "Gate artifact does not belong to the compiler artifact.",
+        )
+        _require_artifact_match(
+            gate.calibration_artifact_id == calibration.artifact_id,
+            "Gate artifact does not belong to the calibration artifact.",
+        )
+        _require_artifact_match(
+            gate.snapshot_id == compiler.snapshot_id,
+            "Gate/compiler snapshot IDs do not match.",
+        )
+        _require_artifact_match(
+            gate.calibration_sha256 == calibration.calibration_sha256,
+            "Gate/calibration split hashes do not match.",
+        )
+        _require_artifact_match(
+            gate.calibration_count == calibration.calibration_count,
+            "Gate/calibration split counts do not match.",
+        )
         return self
 
     @property
@@ -105,14 +124,26 @@ class FallbackDecision(StrictModel):
 
     @model_validator(mode="after")
     def _validate_probabilities(self) -> FallbackDecision:
-        if any(value < 0.0 or value > 1.0 for value in self.probabilities.values()):
-            raise ValueError("Fallback probabilities must be in [0, 1].")
-        if self.probabilities:
-            if abs(sum(self.probabilities.values()) - 1.0) > 1e-6:
-                raise ValueError("Fallback probabilities must sum to 1.")
-            selected_key = _selected_key(self.selected)
-            if selected_key not in self.probabilities:
-                raise ValueError("Fallback selected value must exist in probabilities.")
+        if not self.probabilities:
+            return self
+
+        values = tuple(self.probabilities.values())
+        if not all(math.isfinite(value) and 0.0 <= value <= 1.0 for value in values):
+            raise ValueError("Fallback probabilities must be finite and in [0, 1].")
+        if not math.isclose(sum(values), 1.0, rel_tol=0.0, abs_tol=1e-6):
+            raise ValueError("Fallback probabilities must sum to 1.")
+
+        selected_key = _selected_key(self.selected)
+        selected_probability = self.probabilities.get(selected_key)
+        if selected_probability is None:
+            raise ValueError("Fallback selected value must exist in probabilities.")
+        if self.confidence is not None and not math.isclose(
+            self.confidence,
+            selected_probability,
+            rel_tol=0.0,
+            abs_tol=1e-6,
+        ):
+            raise ValueError("Fallback confidence must match the selected probability.")
         return self
 
 
