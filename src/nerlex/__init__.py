@@ -1,6 +1,17 @@
 """Nerlex public Python API."""
 
 from nerlex.capture import CaptureRun, capture, observe_outcome
+from nerlex.dataset import (
+    DatasetExample,
+    DatasetSnapshot,
+    DatasetSplit,
+    SnapshotConfig,
+    SnapshotManifest,
+    SplitConfig,
+    build_snapshot,
+    verify_snapshot,
+    write_snapshot,
+)
 from nerlex.spec import (
     Candidate,
     CandidateMode,
@@ -20,6 +31,9 @@ __all__ = [
     "Candidate",
     "CandidateMode",
     "CaptureRun",
+    "DatasetExample",
+    "DatasetSnapshot",
+    "DatasetSplit",
     "DecisionKind",
     "DecisionRequest",
     "DecisionResult",
@@ -29,12 +43,18 @@ __all__ = [
     "LabelSource",
     "ResultObservation",
     "SQLiteTraceStore",
+    "SnapshotConfig",
+    "SnapshotManifest",
+    "SplitConfig",
     "TraceRecord",
+    "build_snapshot",
     "capture",
     "export_jsonl",
     "load_jsonl",
     "observe_outcome",
     "validate_request",
+    "verify_snapshot",
+    "write_snapshot",
 ]
 
 __version__ = "0.1.0.dev0"
