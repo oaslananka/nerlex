@@ -3,6 +3,7 @@
 from nerlex.capture import CaptureRun, capture, observe_outcome
 from nerlex.compiler import (
     CompilerArtifact,
+    CompilerBackend,
     CompilerConfig,
     CompilerKind,
     CompilerPrediction,
@@ -43,6 +44,7 @@ __all__ = [
     "CandidateMode",
     "CaptureRun",
     "CompilerArtifact",
+    "CompilerBackend",
     "CompilerConfig",
     "CompilerKind",
     "CompilerPrediction",
