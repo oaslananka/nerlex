@@ -14,9 +14,9 @@ from nerlex.dataset import DatasetExample, DatasetSnapshot, DatasetSplit
 from nerlex.hashing import canonical_json, sha256_hex
 from nerlex.spec import CandidateMode, DecisionKind, DecisionSpec, StrictModel
 
-TOKENIZER_VERSION = "unicode-word-v1"
-COMPILER_ARTIFACT_SCHEMA_VERSION = 1
-COMPILER_IMPLEMENTATION_VERSION = "1"
+TOKENIZER_VERSION: Literal["unicode-word-v1"] = "unicode-word-v1"
+COMPILER_ARTIFACT_SCHEMA_VERSION: Literal[1] = 1
+COMPILER_IMPLEMENTATION_VERSION: Literal["1"] = "1"
 
 _TOKEN_RE = re.compile(r"\w+", flags=re.UNICODE)
 
