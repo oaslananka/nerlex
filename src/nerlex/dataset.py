@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import io
+import os
+import tempfile
 from collections.abc import Iterable
 from enum import StrEnum
 from pathlib import Path
@@ -73,9 +76,8 @@ class SplitArtifact(StrictModel):
     sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
 
 
-class SnapshotManifest(StrictModel):
+class _SnapshotIdentity(StrictModel):
     schema_version: Literal[1] = 1
-    snapshot_id: str = Field(pattern=r"^[a-f0-9]{64}$")
     decision_spec: DecisionSpec
     spec_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
     config: SnapshotConfig
@@ -85,7 +87,7 @@ class SnapshotManifest(StrictModel):
     splits: dict[DatasetSplit, SplitArtifact]
 
     @model_validator(mode="after")
-    def _validate_manifest(self) -> SnapshotManifest:
+    def _validate_identity(self) -> _SnapshotIdentity:
         if self.spec_hash != sha256_hex(self.decision_spec):
             raise ValueError("spec_hash does not match decision_spec.")
         if self.included_count + self.excluded_unlabeled_count != self.source_trace_count:
@@ -95,6 +97,19 @@ class SnapshotManifest(StrictModel):
         for split, artifact in self.splits.items():
             if artifact.filename != f"{split.value}.jsonl":
                 raise ValueError(f"Unexpected filename for {split.value} split.")
+        return self
+
+
+class SnapshotManifest(_SnapshotIdentity):
+    snapshot_id: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+    @model_validator(mode="after")
+    def _validate_snapshot_id(self) -> SnapshotManifest:
+        identity = _SnapshotIdentity.model_validate(
+            self.model_dump(mode="json", exclude={"snapshot_id"})
+        )
+        if _snapshot_identity_hash(identity) != self.snapshot_id:
+            raise ValueError("Snapshot manifest identity does not match its content.")
         return self
 
 
@@ -111,7 +126,7 @@ class DatasetSnapshot(StrictModel):
             artifact = self.manifest.splits[split]
             if len(values) != artifact.count:
                 raise ValueError(f"{split.value} in-memory count does not match manifest.")
-            digest = hashlib.sha256(_examples_bytes(values)).hexdigest()
+            digest = _examples_digest(values)
             if digest != artifact.sha256:
                 raise ValueError(f"{split.value} in-memory content does not match manifest.")
         return self
@@ -169,33 +184,17 @@ def build_snapshot(
     for values in buckets.values():
         values.sort(key=lambda example: str(example.request_id))
 
-    split_bytes = {
-        split: _examples_bytes(tuple(values))
-        for split, values in buckets.items()
-    }
     artifacts = {
         split: SplitArtifact(
             filename=f"{split.value}.jsonl",
             count=len(buckets[split]),
-            sha256=hashlib.sha256(split_bytes[split]).hexdigest(),
+            sha256=_examples_digest(tuple(buckets[split])),
         )
         for split in DatasetSplit
     }
     included_count = sum(artifact.count for artifact in artifacts.values())
 
-    manifest_core = {
-        "schema_version": 1,
-        "decision_spec": spec,
-        "spec_hash": spec_hash,
-        "config": resolved_config,
-        "source_trace_count": source_trace_count,
-        "included_count": included_count,
-        "excluded_unlabeled_count": excluded_unlabeled_count,
-        "splits": artifacts,
-    }
-    snapshot_id = sha256_hex(manifest_core)
-    manifest = SnapshotManifest(
-        snapshot_id=snapshot_id,
+    identity = _SnapshotIdentity(
         decision_spec=spec,
         spec_hash=spec_hash,
         config=resolved_config,
@@ -203,6 +202,13 @@ def build_snapshot(
         included_count=included_count,
         excluded_unlabeled_count=excluded_unlabeled_count,
         splits=artifacts,
+    )
+    snapshot_id = _snapshot_identity_hash(identity)
+    manifest = SnapshotManifest.model_validate(
+        {
+            **identity.model_dump(mode="json"),
+            "snapshot_id": snapshot_id,
+        }
     )
 
     return DatasetSnapshot(
@@ -234,10 +240,6 @@ def verify_snapshot(path: str | Path) -> SnapshotManifest:
     directory = Path(path)
     manifest_path = directory / "manifest.json"
     manifest = SnapshotManifest.model_validate_json(manifest_path.read_text(encoding="utf-8"))
-
-    core = manifest.model_dump(mode="python", exclude={"snapshot_id"})
-    if sha256_hex(core) != manifest.snapshot_id:
-        raise ValueError("Snapshot manifest identity does not match its content.")
 
     total = 0
     seen_request_ids: set[UUID] = set()
@@ -380,17 +382,36 @@ def _assign_split(request_id: UUID, config: SplitConfig) -> DatasetSplit:
     return DatasetSplit.TEST
 
 
+def _snapshot_identity_hash(identity: _SnapshotIdentity) -> str:
+    return sha256_hex(identity.model_dump(mode="json"))
+
+
+def _example_line(example: DatasetExample) -> bytes:
+    return (canonical_json(example) + "\n").encode("utf-8")
+
+
+def _examples_digest(examples: tuple[DatasetExample, ...]) -> str:
+    digest = hashlib.sha256()
+    for example in examples:
+        digest.update(_example_line(example))
+    return digest.hexdigest()
+
+
 def _examples_bytes(examples: tuple[DatasetExample, ...]) -> bytes:
-    return "".join(f"{canonical_json(example)}\n" for example in examples).encode("utf-8")
+    buffer = io.BytesIO()
+    for example in examples:
+        buffer.write(_example_line(example))
+    return buffer.getvalue()
 
 
 def _parse_examples_bytes(payload: bytes, filename: str) -> list[DatasetExample]:
     parsed: list[DatasetExample] = []
-    for line_number, line in enumerate(payload.decode("utf-8").splitlines(), start=1):
-        if not line:
+    for line_number, line in enumerate(io.BytesIO(payload), start=1):
+        stripped = line.strip()
+        if not stripped:
             continue
         try:
-            parsed.append(DatasetExample.model_validate_json(line))
+            parsed.append(DatasetExample.model_validate_json(stripped))
         except ValueError as exc:
             raise ValueError(
                 f"Invalid dataset example in {filename} at line {line_number}."
@@ -403,4 +424,27 @@ def _write_immutable(path: Path, payload: bytes) -> None:
         if path.read_bytes() != payload:
             raise ValueError(f"Refusing to overwrite immutable snapshot file: {path.name}.")
         return
-    path.write_bytes(payload)
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+    )
+    temporary_path = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+
+        if path.exists():
+            if path.read_bytes() != payload:
+                raise ValueError(
+                    f"Refusing to overwrite immutable snapshot file: {path.name}."
+                )
+            return
+
+        os.replace(temporary_path, path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
