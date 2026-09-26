@@ -215,7 +215,7 @@ def test_centroid_oov_prediction_is_finite_and_uniform() -> None:
 def test_multinomial_oov_prediction_uses_finite_class_priors() -> None:
     artifact = compile_snapshot(_snapshot(), MultinomialNBConfig())
 
-    prediction = predict(artifact, {"text": "completely_unseen_oov_token"})
+    prediction = predict(artifact, "completely_unseen_oov_token")
 
     assert all(math.isfinite(value) for value in prediction.probabilities.values())
     assert sum(prediction.probabilities.values()) == pytest.approx(1.0)
