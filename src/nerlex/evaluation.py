@@ -58,6 +58,8 @@ class _EmpiricalRiskGateIdentity(StrictModel):
 
     @model_validator(mode="after")
     def _validate_shape(self) -> _EmpiricalRiskGateIdentity:
+        if self.accepted_count > self.calibration_count:
+            raise ValueError("Gate accepted_count exceeds calibration_count.")
         if self.confidence_threshold is None:
             if self.accepted_count != 0 or self.empirical_risk is not None:
                 raise ValueError("An abstain-all gate must have zero accepted examples.")
@@ -123,6 +125,25 @@ class _EvaluationReportIdentity(StrictModel):
     risk_coverage: tuple[RiskCoveragePoint, ...]
     aurc: float = Field(ge=0.0, le=1.0)
     selective: SelectiveSummary | None = None
+
+
+    @model_validator(mode="after")
+    def _validate_consistency(self) -> _EvaluationReportIdentity:
+        if self.raw.count != self.test_count or self.calibrated.count != self.test_count:
+            raise ValueError("Evaluation metric counts must match test_count.")
+        if not self.risk_coverage:
+            raise ValueError("Evaluation report requires a risk-coverage curve.")
+        if not math.isclose(
+            self.risk_coverage[-1].coverage,
+            1.0,
+            rel_tol=0.0,
+            abs_tol=1e-12,
+        ):
+            raise ValueError("Risk-coverage curve must end at full coverage.")
+        if self.selective is not None:
+            if self.selective.accepted + self.selective.abstained != self.test_count:
+                raise ValueError("Selective counts must match test_count.")
+        return self
 
 
 class EvaluationReport(_EvaluationReportIdentity):
