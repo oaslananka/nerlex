@@ -3,8 +3,8 @@ from __future__ import annotations
 import math
 import re
 import unicodedata
-from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Literal, Protocol
 
@@ -81,7 +81,9 @@ class _CompilerArtifactIdentity(StrictModel):
         if self.decision_spec.candidate_mode is not CandidateMode.STATIC:
             raise ValueError("v0.1 compiler artifacts support static candidates only.")
 
-        expected_classes = tuple(sorted(candidate.key for candidate in self.decision_spec.candidates))
+        expected_classes = tuple(
+            sorted(candidate.key for candidate in self.decision_spec.candidates)
+        )
         if self.model.classes != expected_classes:
             raise ValueError("Compiler model classes do not match the DecisionSpec candidates.")
 
@@ -101,7 +103,11 @@ class _CompilerArtifactIdentity(StrictModel):
         else:
             if set(self.model.centroids) != set(expected_classes):
                 raise ValueError("Centroid model class vectors are incomplete.")
-            if any(token not in self.model.idf for vector in self.model.centroids.values() for token in vector):
+            if any(
+                token not in self.model.idf
+                for vector in self.model.centroids.values()
+                for token in vector
+            ):
                 raise ValueError("Centroid contains a token missing from the IDF table.")
         return self
 
