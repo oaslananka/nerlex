@@ -7,6 +7,7 @@ from uuid import UUID
 
 from nerlex.hashing import canonical_json, sha256_hex
 from nerlex.spec import DecisionRequest, DecisionResult, DecisionSpec, LabelObservation
+from nerlex.trace import ResultObservation, TraceRecord
 
 SCHEMA_VERSION = 1
 
@@ -170,3 +171,53 @@ class SQLiteTraceStore:
             ).fetchall()
         for row in rows:
             yield UUID(row["request_id"])
+
+    def iter_traces(self, decision_id: str) -> Iterator[TraceRecord]:
+        with self.connect() as connection:
+            request_rows = connection.execute(
+                """
+                SELECT request_json FROM decision_requests
+                WHERE decision_id = ?
+                ORDER BY event_time, request_id
+                """,
+                (decision_id,),
+            ).fetchall()
+
+            for request_row in request_rows:
+                request = DecisionRequest.model_validate_json(request_row["request_json"])
+
+                observation_rows = connection.execute(
+                    """
+                    SELECT observation_kind, result_json
+                    FROM decision_observations
+                    WHERE request_id = ?
+                    ORDER BY id
+                    """,
+                    (str(request.request_id),),
+                ).fetchall()
+                observations = tuple(
+                    ResultObservation(
+                        kind=row["observation_kind"],
+                        result=DecisionResult.model_validate_json(row["result_json"]),
+                    )
+                    for row in observation_rows
+                )
+
+                label_rows = connection.execute(
+                    """
+                    SELECT label_json FROM labels
+                    WHERE request_id = ?
+                    ORDER BY observed_at, observation_id
+                    """,
+                    (str(request.request_id),),
+                ).fetchall()
+                labels = tuple(
+                    LabelObservation.model_validate_json(row["label_json"])
+                    for row in label_rows
+                )
+
+                yield TraceRecord(
+                    request=request,
+                    observations=observations,
+                    labels=labels,
+                )
