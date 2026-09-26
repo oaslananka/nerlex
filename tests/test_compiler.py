@@ -305,3 +305,21 @@ def test_boolean_compiler_maps_labels_without_string_leakage(tmp_path) -> None:
 
     assert result.selected is True
     assert set(result.probabilities) == {"false", "true"}
+
+
+def test_compile_requires_training_coverage_for_every_label(tmp_path) -> None:
+    records = [_choice_trace(number, "billing") for number in range(40)]
+    snapshot = build_snapshot(
+        CHOICE_SPEC,
+        records,
+        config=SnapshotConfig(
+            split=SplitConfig(train=0.8, calibration=0.1, test=0.1, seed="missing-label")
+        ),
+    )
+    snapshot_path = write_snapshot(snapshot, tmp_path)
+
+    with pytest.raises(ValueError, match="no examples for labels: technical"):
+        compile_snapshot(
+            snapshot_path,
+            CompilerConfig(kind=CompilerKind.MULTINOMIAL_NB),
+        )
