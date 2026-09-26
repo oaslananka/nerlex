@@ -84,10 +84,37 @@ class SnapshotManifest(StrictModel):
     excluded_unlabeled_count: int = Field(ge=0)
     splits: dict[DatasetSplit, SplitArtifact]
 
+    @model_validator(mode="after")
+    def _validate_manifest(self) -> SnapshotManifest:
+        if self.spec_hash != sha256_hex(self.decision_spec):
+            raise ValueError("spec_hash does not match decision_spec.")
+        if self.included_count + self.excluded_unlabeled_count != self.source_trace_count:
+            raise ValueError("Snapshot source/included/excluded counts are inconsistent.")
+        if set(self.splits) != set(DatasetSplit):
+            raise ValueError("Snapshot manifest must contain exactly all dataset splits.")
+        for split, artifact in self.splits.items():
+            if artifact.filename != f"{split.value}.jsonl":
+                raise ValueError(f"Unexpected filename for {split.value} split.")
+        return self
+
 
 class DatasetSnapshot(StrictModel):
     manifest: SnapshotManifest
     examples: dict[DatasetSplit, tuple[DatasetExample, ...]]
+
+    @model_validator(mode="after")
+    def _validate_examples(self) -> DatasetSnapshot:
+        if set(self.examples) != set(DatasetSplit):
+            raise ValueError("Dataset snapshot must contain exactly all dataset splits.")
+        for split in DatasetSplit:
+            values = self.examples[split]
+            artifact = self.manifest.splits[split]
+            if len(values) != artifact.count:
+                raise ValueError(f"{split.value} in-memory count does not match manifest.")
+            digest = hashlib.sha256(_examples_bytes(values)).hexdigest()
+            if digest != artifact.sha256:
+                raise ValueError(f"{split.value} in-memory content does not match manifest.")
+        return self
 
 
 class _ResolvedLabel(StrictModel):
@@ -212,6 +239,7 @@ def verify_snapshot(path: str | Path) -> SnapshotManifest:
         raise ValueError("Snapshot manifest identity does not match its content.")
 
     total = 0
+    seen_request_ids: set[UUID] = set()
     for split in DatasetSplit:
         artifact = manifest.splits[split]
         payload = (directory / artifact.filename).read_bytes()
@@ -221,6 +249,15 @@ def verify_snapshot(path: str | Path) -> SnapshotManifest:
         parsed = _parse_examples_bytes(payload, artifact.filename)
         if len(parsed) != artifact.count:
             raise ValueError(f"{split.value} split count mismatch.")
+
+        for example in parsed:
+            if example.request_id in seen_request_ids:
+                raise ValueError("A request_id appears in more than one snapshot example.")
+            seen_request_ids.add(example.request_id)
+            if example.label_source not in manifest.config.label_priority:
+                raise ValueError("Dataset example uses a label source outside label_priority.")
+            _validate_example(manifest.decision_spec, example)
+
         total += len(parsed)
 
     if total != manifest.included_count:
@@ -302,6 +339,33 @@ def _validate_label(
     if value not in valid_keys:
         raise ValueError(
             f"Label {value!r} is not a valid candidate for request {record.request.request_id}."
+        )
+
+
+def _validate_example(spec: DecisionSpec, example: DatasetExample) -> None:
+    if spec.kind is DecisionKind.BOOLEAN:
+        if not isinstance(example.label, bool):
+            raise ValueError("Boolean DecisionSpec requires boolean labels.")
+        if example.candidates:
+            raise ValueError("Boolean dataset examples cannot contain candidates.")
+        return
+
+    if not isinstance(example.label, str):
+        raise ValueError("Choice DecisionSpec requires string labels.")
+
+    if spec.candidate_mode is CandidateMode.STATIC:
+        if example.candidates:
+            raise ValueError("Static choice dataset examples must not contain request candidates.")
+        candidates = spec.candidates
+    else:
+        if len(example.candidates) < 2:
+            raise ValueError("Dynamic choice dataset examples require at least two candidates.")
+        candidates = example.candidates
+
+    valid_keys = {candidate.key for candidate in candidates}
+    if example.label not in valid_keys:
+        raise ValueError(
+            f"Label {example.label!r} is not a valid candidate for request {example.request_id}."
         )
 
 
