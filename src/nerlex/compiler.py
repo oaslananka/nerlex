@@ -146,7 +146,10 @@ def predict(
         raise ValueError(f"Unsupported compiler kind: {artifact.compiler_kind}.")
 
     probabilities = _softmax(scores, artifact.config.temperature)
-    selected_key = max(artifact.labels, key=lambda label: (probabilities[label], label))
+    selected_key = min(
+        artifact.labels,
+        key=lambda label: (-probabilities[label], label),
+    )
     selected = _decode_label(artifact.decision_spec, selected_key)
     return CompilerPrediction(
         artifact_id=artifact.artifact_id,
