@@ -18,4 +18,5 @@ The project follows Semantic Versioning once stable public contracts are establi
 - Snapshot content hashing and tamper verification.
 - Deterministic multinomial Naive Bayes and cosine-centroid compiler baselines with safe JSON artifacts.
 - Temperature calibration artifacts, empirical confidence gates, and sealed selective evaluation metrics.
+- Calibrated local cascade runtime with explicit abstention, typed fallback, timeout/error semantics, and exact artifact lineage.
 - Public contributor, security, and agent guidance.
