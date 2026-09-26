@@ -3,8 +3,8 @@ from __future__ import annotations
 import math
 import re
 import unicodedata
-from collections.abc import Mapping, Sequence
 from collections import Counter, defaultdict
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Literal, Protocol
 
