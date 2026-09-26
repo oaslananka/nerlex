@@ -40,7 +40,7 @@ Runtime results preserve route identity and exact artifact IDs. Local and fallba
 - fallback exception/invalid output: raise an explicit fallback execution error;
 - no configured fallback: return an explicit local abstention.
 
-The thread-based timeout is a caller-facing deadline, not a hard process kill. Remote fallback clients should also enforce transport-level timeouts.
+Fallback work runs through one persistent bounded executor per runtime instance. The runtime is a context manager and can also be closed explicitly. The timeout is a caller-facing deadline, not a hard process kill, so remote fallback clients must also enforce transport-level timeouts.
 
 ## Consequences
 
