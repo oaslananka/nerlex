@@ -352,20 +352,28 @@ def _macro_f1(
     rows: tuple[_PredictionRow, ...],
     classes: tuple[str, ...],
 ) -> float:
+    true_positive = {class_name: 0 for class_name in classes}
+    false_positive = {class_name: 0 for class_name in classes}
+    false_negative = {class_name: 0 for class_name in classes}
+
+    for row in rows:
+        if row.selected == row.label:
+            true_positive[row.label] += 1
+        else:
+            false_positive[row.selected] += 1
+            false_negative[row.label] += 1
+
     scores: list[float] = []
     for class_name in classes:
-        true_positive = sum(
-            row.label == class_name and row.selected == class_name for row in rows
+        denominator = (
+            (2 * true_positive[class_name])
+            + false_positive[class_name]
+            + false_negative[class_name]
         )
-        false_positive = sum(
-            row.label != class_name and row.selected == class_name for row in rows
-        )
-        false_negative = sum(
-            row.label == class_name and row.selected != class_name for row in rows
-        )
-        denominator = (2 * true_positive) + false_positive + false_negative
         scores.append(
-            0.0 if denominator == 0 else (2 * true_positive) / denominator
+            0.0
+            if denominator == 0
+            else (2 * true_positive[class_name]) / denominator
         )
     return sum(scores) / len(scores)
 
