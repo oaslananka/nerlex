@@ -16,4 +16,7 @@ The project follows Semantic Versioning once stable public contracts are establi
 - Deterministic trace export and replay.
 - Immutable dataset snapshots with explicit label priority and train/calibration/test splits.
 - Snapshot content hashing and tamper verification.
+- Safe JSON compiler artifacts bound to source snapshot and train-split hashes.
+- Deterministic Multinomial Naive Bayes and centroid/cosine local compiler baselines.
+- Typed local predictions with uncalibrated probability metadata.
 - Public contributor, security, and agent guidance.
