@@ -22,6 +22,7 @@ CALIBRATION_IMPLEMENTATION_VERSION: Literal["1"] = "1"
 
 _SHA256_PATTERN = r"^[a-f0-9]{64}$"
 _MIN_PROBABILITY = 1e-15
+_FLOAT_TOLERANCE = 1e-9
 
 
 class CalibrationError(ValueError):
@@ -85,9 +86,9 @@ class CalibratedPrediction(StrictModel):
             raise ValueError("Selected class must exist in calibrated probabilities.")
         if any(value < 0.0 or value > 1.0 for value in self.probabilities.values()):
             raise ValueError("Calibrated probabilities must be in [0, 1].")
-        if abs(sum(self.probabilities.values()) - 1.0) > 1e-9:
+        if abs(sum(self.probabilities.values()) - 1.0) > _FLOAT_TOLERANCE:
             raise ValueError("Calibrated probabilities must sum to 1.")
-        if abs(self.probabilities[self.selected] - self.confidence) > 1e-12:
+        if abs(self.probabilities[self.selected] - self.confidence) > _FLOAT_TOLERANCE:
             raise ValueError("confidence must equal the selected calibrated probability.")
         return self
 
@@ -114,7 +115,7 @@ def fit_temperature(
         )
         for example in examples
     )
-    classes = _artifact_classes(compiler_artifact)
+    classes = tuple(sorted(_artifact_classes(compiler_artifact)))
     _validate_rows(rows, classes)
 
     temperature = _fit_temperature_value(rows, resolved_config)
@@ -296,7 +297,7 @@ def _validate_calibration_for_compiler(
         raise CalibrationError("Calibration artifact does not belong to this compiler artifact.")
     if calibration.snapshot_id != compiler_artifact.snapshot_id:
         raise CalibrationError("Calibration/compiler source snapshot IDs do not match.")
-    if calibration.classes != _artifact_classes(compiler_artifact):
+    if calibration.classes != tuple(sorted(_artifact_classes(compiler_artifact))):
         raise CalibrationError("Calibration/compiler classes do not match.")
 
 
