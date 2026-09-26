@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import hashlib
 import math
 import re
 from collections import Counter, defaultdict
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 from pydantic import Field, model_validator
 
@@ -84,6 +85,25 @@ class CompilerArtifact(_CompilerIdentity):
         return self
 
 
+class CompilerBackend(Protocol):
+    """Training/scoring contract for deterministic local compiler families."""
+
+    kind: CompilerKind
+
+    def train(
+        self,
+        examples: tuple[DatasetExample, ...],
+        labels: tuple[str, ...],
+        config: CompilerConfig,
+    ) -> dict[str, Any]: ...
+
+    def score(
+        self,
+        artifact: CompilerArtifact,
+        text: str,
+    ) -> dict[str, float]: ...
+
+
 def compile_snapshot(
     snapshot_path: str | Path,
     config: CompilerConfig,
@@ -107,12 +127,8 @@ def compile_snapshot(
             "The train split has no examples for labels: " + ", ".join(missing_labels)
         )
 
-    if config.kind is CompilerKind.MULTINOMIAL_NB:
-        payload = _train_multinomial_nb(examples, labels, config.alpha)
-    elif config.kind is CompilerKind.CENTROID_COSINE:
-        payload = _train_centroid_cosine(examples, labels)
-    else:  # pragma: no cover - enum exhaustiveness
-        raise ValueError(f"Unsupported compiler kind: {config.kind}.")
+    backend = _backend(config.kind)
+    payload = backend.train(examples, labels, config)
 
     identity = _CompilerIdentity(
         compiler_kind=config.kind,
@@ -138,13 +154,7 @@ def predict(
 ) -> CompilerPrediction:
     """Run deterministic local inference from a validated compiler artifact."""
     text = _state_text(state)
-    if artifact.compiler_kind is CompilerKind.MULTINOMIAL_NB:
-        scores = _score_multinomial_nb(artifact, text)
-    elif artifact.compiler_kind is CompilerKind.CENTROID_COSINE:
-        scores = _score_centroid_cosine(artifact, text)
-    else:  # pragma: no cover - enum exhaustiveness
-        raise ValueError(f"Unsupported compiler kind: {artifact.compiler_kind}.")
-
+    scores = _backend(artifact.compiler_kind).score(artifact, text)
     probabilities = _softmax(scores, artifact.config.temperature)
     selected_key = min(
         artifact.labels,
@@ -180,8 +190,10 @@ def _load_train_examples(
     artifact = manifest.splits[DatasetSplit.TRAIN]
     source = directory / artifact.filename
     examples: list[DatasetExample] = []
+    digest = hashlib.sha256()
     with source.open("rb") as handle:
         for line_number, line in enumerate(handle, start=1):
+            digest.update(line)
             stripped = line.strip()
             if not stripped:
                 continue
@@ -191,10 +203,64 @@ def _load_train_examples(
                 raise ValueError(
                     f"Invalid train example at line {line_number}."
                 ) from exc
+
+    if digest.hexdigest() != artifact.sha256:
+        raise ValueError("Train split changed after snapshot verification.")
     if len(examples) != artifact.count:
         raise ValueError("Train split count changed after snapshot verification.")
     return tuple(examples)
 
+
+
+class _MultinomialNBBackend:
+    kind = CompilerKind.MULTINOMIAL_NB
+
+    def train(
+        self,
+        examples: tuple[DatasetExample, ...],
+        labels: tuple[str, ...],
+        config: CompilerConfig,
+    ) -> dict[str, Any]:
+        return _train_multinomial_nb(examples, labels, config.alpha)
+
+    def score(
+        self,
+        artifact: CompilerArtifact,
+        text: str,
+    ) -> dict[str, float]:
+        return _score_multinomial_nb(artifact, text)
+
+
+class _CentroidCosineBackend:
+    kind = CompilerKind.CENTROID_COSINE
+
+    def train(
+        self,
+        examples: tuple[DatasetExample, ...],
+        labels: tuple[str, ...],
+        config: CompilerConfig,
+    ) -> dict[str, Any]:
+        return _train_centroid_cosine(examples, labels)
+
+    def score(
+        self,
+        artifact: CompilerArtifact,
+        text: str,
+    ) -> dict[str, float]:
+        return _score_centroid_cosine(artifact, text)
+
+
+_BACKENDS: dict[CompilerKind, CompilerBackend] = {
+    CompilerKind.MULTINOMIAL_NB: _MultinomialNBBackend(),
+    CompilerKind.CENTROID_COSINE: _CentroidCosineBackend(),
+}
+
+
+def _backend(kind: CompilerKind) -> CompilerBackend:
+    try:
+        return _BACKENDS[kind]
+    except KeyError as exc:  # pragma: no cover - enum/registry invariant
+        raise ValueError(f"Unsupported compiler kind: {kind}.") from exc
 
 def _train_multinomial_nb(
     examples: tuple[DatasetExample, ...],
