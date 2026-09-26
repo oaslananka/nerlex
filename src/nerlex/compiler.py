@@ -20,7 +20,6 @@ from nerlex.dataset import (
 from nerlex.hashing import canonical_json, sha256_hex
 from nerlex.spec import CandidateMode, DecisionKind, DecisionSpec, StrictModel
 
-
 COMPILER_VERSION = "1"
 _TOKEN_RE = re.compile(r"[^\W_]+", flags=re.UNICODE)
 
