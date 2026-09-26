@@ -4,7 +4,8 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
 from time import perf_counter
-from typing import Protocol
+from types import TracebackType
+from typing import Protocol, Self
 
 from pydantic import Field, model_validator
 
@@ -31,7 +32,7 @@ class LocalRuntimeError(RuntimeError):
     """Base error for local cascade runtime failures."""
 
 
-class RuntimeArtifactError(LocalRuntimeError):
+class RuntimeArtifactError(LocalRuntimeError, ValueError):
     """Raised when runtime artifacts do not have compatible lineage."""
 
 
@@ -49,6 +50,7 @@ class FallbackTimeoutError(FallbackExecutionError):
 
 class RuntimeConfig(StrictModel):
     fallback_timeout_seconds: float = Field(default=30.0, gt=0.0, le=600.0)
+    fallback_workers: int = Field(default=4, ge=1, le=64)
 
 
 class RuntimeBundle(StrictModel):
@@ -63,22 +65,22 @@ class RuntimeBundle(StrictModel):
         gate = self.gate
 
         if calibration.compiler_artifact_id != compiler.artifact_id:
-            raise ValueError("Calibration artifact does not belong to the compiler artifact.")
+            raise RuntimeArtifactError("Calibration artifact does not belong to the compiler artifact.")
         if calibration.snapshot_id != compiler.snapshot_id:
-            raise ValueError("Calibration/compiler snapshot IDs do not match.")
+            raise RuntimeArtifactError("Calibration/compiler snapshot IDs do not match.")
         if calibration.classes != tuple(sorted(compiler.model.classes)):
-            raise ValueError("Calibration/compiler class sets do not match.")
+            raise RuntimeArtifactError("Calibration/compiler class sets do not match.")
 
         if gate.compiler_artifact_id != compiler.artifact_id:
-            raise ValueError("Gate artifact does not belong to the compiler artifact.")
+            raise RuntimeArtifactError("Gate artifact does not belong to the compiler artifact.")
         if gate.calibration_artifact_id != calibration.artifact_id:
-            raise ValueError("Gate artifact does not belong to the calibration artifact.")
+            raise RuntimeArtifactError("Gate artifact does not belong to the calibration artifact.")
         if gate.snapshot_id != compiler.snapshot_id:
-            raise ValueError("Gate/compiler snapshot IDs do not match.")
+            raise RuntimeArtifactError("Gate/compiler snapshot IDs do not match.")
         if gate.calibration_sha256 != calibration.calibration_sha256:
-            raise ValueError("Gate/calibration split hashes do not match.")
+            raise RuntimeArtifactError("Gate/calibration split hashes do not match.")
         if gate.calibration_count != calibration.calibration_count:
-            raise ValueError("Gate/calibration split counts do not match.")
+            raise RuntimeArtifactError("Gate/calibration split counts do not match.")
         return self
 
     @property
@@ -106,11 +108,7 @@ class FallbackDecision(StrictModel):
         if self.probabilities:
             if abs(sum(self.probabilities.values()) - 1.0) > 1e-6:
                 raise ValueError("Fallback probabilities must sum to 1.")
-            selected_key = (
-                str(self.selected).lower()
-                if isinstance(self.selected, bool)
-                else self.selected
-            )
+            selected_key = _selected_key(self.selected)
             if selected_key not in self.probabilities:
                 raise ValueError("Fallback selected value must exist in probabilities.")
         return self
@@ -131,6 +129,32 @@ class LocalCascadeRuntime:
         self.bundle = RuntimeBundle.model_validate(bundle)
         self.fallback = fallback
         self.config = config or RuntimeConfig()
+        self._fallback_executor = (
+            ThreadPoolExecutor(
+                max_workers=self.config.fallback_workers,
+                thread_name_prefix="nerlex-fallback",
+            )
+            if fallback is not None
+            else None
+        )
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        self.close()
+
+    def close(self) -> None:
+        executor = self._fallback_executor
+        if executor is None:
+            return
+        self._fallback_executor = None
+        executor.shutdown(wait=False, cancel_futures=True)
 
     def decide(self, request: DecisionRequest) -> DecisionResult:
         started = perf_counter()
@@ -228,8 +252,10 @@ class LocalCascadeRuntime:
     def _run_fallback(self, request: DecisionRequest) -> FallbackDecision:
         if self.fallback is None:
             raise AssertionError("Fallback execution requires a configured provider.")
+        executor = self._fallback_executor
+        if executor is None:
+            raise FallbackExecutionError("Fallback runtime is closed.")
 
-        executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="nerlex-fallback")
         future = executor.submit(self.fallback, request)
         try:
             value = future.result(timeout=self.config.fallback_timeout_seconds)
@@ -240,8 +266,6 @@ class LocalCascadeRuntime:
             ) from exc
         except Exception as exc:
             raise FallbackExecutionError("Fallback execution failed.") from exc
-        finally:
-            executor.shutdown(wait=False, cancel_futures=True)
 
         try:
             return FallbackDecision.model_validate(value)
