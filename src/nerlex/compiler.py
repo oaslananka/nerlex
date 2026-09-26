@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import math
+import os
 import re
+import tempfile
 import unicodedata
 from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
@@ -19,6 +21,7 @@ COMPILER_ARTIFACT_SCHEMA_VERSION: Literal[1] = 1
 COMPILER_IMPLEMENTATION_VERSION: Literal["1"] = "1"
 
 _TOKEN_RE = re.compile(r"\w+", flags=re.UNICODE)
+_SHA256_PATTERN = r"^[a-f0-9]{64}$"
 
 
 class CompilerError(ValueError):
@@ -44,7 +47,7 @@ class MultinomialNBModel(StrictModel):
     classes: tuple[str, ...]
     vocabulary: tuple[str, ...]
     class_log_prior: dict[str, float]
-    feature_log_prob: dict[str, tuple[float, ...]]
+    feature_log_prob: dict[str, dict[str, float]]
 
 
 class CentroidModel(StrictModel):
@@ -61,9 +64,9 @@ class _CompilerArtifactIdentity(StrictModel):
     schema_version: Literal[1] = COMPILER_ARTIFACT_SCHEMA_VERSION
     compiler_version: Literal["1"] = COMPILER_IMPLEMENTATION_VERSION
     decision_spec: DecisionSpec
-    spec_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
-    snapshot_id: str = Field(pattern=r"^[a-f0-9]{64}$")
-    train_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    spec_hash: str = Field(pattern=_SHA256_PATTERN)
+    snapshot_id: str = Field(pattern=_SHA256_PATTERN)
+    train_sha256: str = Field(pattern=_SHA256_PATTERN)
     train_count: int = Field(ge=1)
     config: CompilerConfig
     model: CompilerModel
@@ -71,48 +74,66 @@ class _CompilerArtifactIdentity(StrictModel):
 
     @model_validator(mode="after")
     def _validate_identity(self) -> _CompilerArtifactIdentity:
-        if self.spec_hash != sha256_hex(self.decision_spec):
-            raise ValueError("spec_hash does not match decision_spec.")
-        if self.config.kind != self.model.kind:
-            raise ValueError("Compiler config/model kinds do not match.")
-        if self.decision_spec.kind is not DecisionKind.CHOICE:
-            raise ValueError("v0.1 compiler artifacts support choice decisions only.")
-        if self.decision_spec.candidate_mode is not CandidateMode.STATIC:
-            raise ValueError("v0.1 compiler artifacts support static candidates only.")
-
-        expected_classes = tuple(
-            sorted(candidate.key for candidate in self.decision_spec.candidates)
-        )
+        _validate_artifact_spec(self)
+        expected_classes = _expected_classes(self.decision_spec)
         if self.model.classes != expected_classes:
             raise ValueError("Compiler model classes do not match the DecisionSpec candidates.")
-
         if isinstance(self.model, MultinomialNBModel):
-            if not self.model.vocabulary:
-                raise ValueError("Multinomial NB vocabulary must not be empty.")
-            vocabulary_size = len(self.model.vocabulary)
-            if set(self.model.class_log_prior) != set(expected_classes):
-                raise ValueError("Multinomial NB class priors are incomplete.")
-            if set(self.model.feature_log_prob) != set(expected_classes):
-                raise ValueError("Multinomial NB feature probabilities are incomplete.")
-            for values in self.model.feature_log_prob.values():
-                if len(values) != vocabulary_size:
-                    raise ValueError(
-                        "Multinomial NB feature probability vector length is invalid."
-                    )
+            _validate_multinomial_model(self.model, expected_classes)
         else:
-            if set(self.model.centroids) != set(expected_classes):
-                raise ValueError("Centroid model class vectors are incomplete.")
-            if any(
-                token not in self.model.idf
-                for vector in self.model.centroids.values()
-                for token in vector
-            ):
-                raise ValueError("Centroid contains a token missing from the IDF table.")
+            _validate_centroid_model(self.model, expected_classes)
         return self
 
 
+
+def _expected_classes(spec: DecisionSpec) -> tuple[str, ...]:
+    return tuple(sorted(candidate.key for candidate in spec.candidates))
+
+
+def _validate_artifact_spec(identity: _CompilerArtifactIdentity) -> None:
+    if identity.spec_hash != sha256_hex(identity.decision_spec):
+        raise ValueError("spec_hash does not match decision_spec.")
+    if identity.config.kind != identity.model.kind:
+        raise ValueError("Compiler config/model kinds do not match.")
+    if identity.decision_spec.kind is not DecisionKind.CHOICE:
+        raise ValueError("v0.1 compiler artifacts support choice decisions only.")
+    if identity.decision_spec.candidate_mode is not CandidateMode.STATIC:
+        raise ValueError("v0.1 compiler artifacts support static candidates only.")
+
+
+def _validate_multinomial_model(
+    model: MultinomialNBModel,
+    expected_classes: tuple[str, ...],
+) -> None:
+    if not model.vocabulary:
+        raise ValueError("Multinomial NB vocabulary must not be empty.")
+    if set(model.class_log_prior) != set(expected_classes):
+        raise ValueError("Multinomial NB class priors are incomplete.")
+    if set(model.feature_log_prob) != set(expected_classes):
+        raise ValueError("Multinomial NB feature probabilities are incomplete.")
+
+    expected_vocabulary = set(model.vocabulary)
+    for values in model.feature_log_prob.values():
+        if set(values) != expected_vocabulary:
+            raise ValueError("Multinomial NB feature probabilities do not match vocabulary.")
+
+
+def _validate_centroid_model(
+    model: CentroidModel,
+    expected_classes: tuple[str, ...],
+) -> None:
+    if set(model.centroids) != set(expected_classes):
+        raise ValueError("Centroid model class vectors are incomplete.")
+    if any(
+        token not in model.idf
+        for vector in model.centroids.values()
+        for token in vector
+    ):
+        raise ValueError("Centroid contains a token missing from the IDF table.")
+
+
 class CompilerArtifact(_CompilerArtifactIdentity):
-    artifact_id: str = Field(pattern=r"^[a-f0-9]{64}$")
+    artifact_id: str = Field(pattern=_SHA256_PATTERN)
 
     @model_validator(mode="after")
     def _validate_artifact_id(self) -> CompilerArtifact:
@@ -125,7 +146,7 @@ class CompilerArtifact(_CompilerArtifactIdentity):
 
 
 class CompilerPrediction(StrictModel):
-    artifact_id: str = Field(pattern=r"^[a-f0-9]{64}$")
+    artifact_id: str = Field(pattern=_SHA256_PATTERN)
     backend: Literal["multinomial_nb", "centroid_cosine"]
     selected: str
     probabilities: dict[str, float]
@@ -187,15 +208,15 @@ class MultinomialNBCompiler:
             for class_name in classes
         }
 
-        feature_log_prob: dict[str, tuple[float, ...]] = {}
+        feature_log_prob: dict[str, dict[str, float]] = {}
         vocabulary_size = len(ordered_vocabulary)
         for class_name in classes:
             counts = class_token_count[class_name]
             denominator = sum(counts.values()) + (alpha * vocabulary_size)
-            feature_log_prob[class_name] = tuple(
-                math.log((counts[token] + alpha) / denominator)
+            feature_log_prob[class_name] = {
+                token: math.log((counts[token] + alpha) / denominator)
                 for token in ordered_vocabulary
-            )
+            }
 
         model = MultinomialNBModel(
             classes=classes,
@@ -304,7 +325,23 @@ def write_compiler_artifact(
             raise ValueError("Refusing to overwrite a compiler artifact with different content.")
         return destination
 
-    destination.write_bytes(payload)
+    handle = tempfile.NamedTemporaryFile(
+        mode="wb",
+        dir=root_path,
+        prefix=f".{artifact.artifact_id}.",
+        suffix=".tmp",
+        delete=False,
+    )
+    temporary = Path(handle.name)
+    try:
+        with handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, destination)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
     return destination
 
 
@@ -367,16 +404,15 @@ def _multinomial_nb_logits(
     tokens: Sequence[str],
 ) -> dict[str, float]:
     token_counts = Counter(tokens)
-    index = {token: position for position, token in enumerate(model.vocabulary)}
 
     logits: dict[str, float] = {}
     for class_name in model.classes:
         score = model.class_log_prior[class_name]
         values = model.feature_log_prob[class_name]
         for token in sorted(token_counts):
-            position = index.get(token)
-            if position is not None:
-                score += token_counts[token] * values[position]
+            token_log_probability = values.get(token)
+            if token_log_probability is not None:
+                score += token_counts[token] * token_log_probability
         logits[class_name] = score
     return logits
 
@@ -406,7 +442,7 @@ def _normalized_tfidf(
 
 def _normalize_sparse(vector: Mapping[str, float]) -> dict[str, float]:
     norm = math.sqrt(sum(value * value for value in vector.values()))
-    if norm == 0.0:
+    if math.isclose(norm, 0.0, abs_tol=1e-15):
         return {}
     return {
         token: value / norm
@@ -429,7 +465,7 @@ def _softmax(logits: Mapping[str, float]) -> dict[str, float]:
         for class_name in sorted(logits)
     }
     denominator = sum(exp_values.values())
-    if denominator == 0.0 or not math.isfinite(denominator):
+    if denominator <= 0.0 or not math.isfinite(denominator):
         raise CompilerError("Compiler produced non-normalizable scores.")
     return {
         class_name: exp_values[class_name] / denominator
