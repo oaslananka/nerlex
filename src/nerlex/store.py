@@ -69,6 +69,8 @@ CREATE INDEX IF NOT EXISTS idx_labels_request
 class SQLiteTraceStore:
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
+        self._initialized = False
+        self._registered_specs: dict[tuple[str, str], str] = {}
 
     def connect(self) -> sqlite3.Connection:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -79,16 +81,28 @@ class SQLiteTraceStore:
         return connection
 
     def initialize(self) -> None:
+        if self._initialized:
+            return
         with self.connect() as connection:
             connection.executescript(_SCHEMA)
             connection.execute(
                 "INSERT OR IGNORE INTO schema_migrations(version) VALUES (?)",
                 (SCHEMA_VERSION,),
             )
+        self._initialized = True
 
     def register_spec(self, spec: DecisionSpec) -> str:
+        self.initialize()
         payload = canonical_json(spec)
         spec_hash = sha256_hex(spec)
+        cache_key = (spec.decision_id, spec.version)
+        cached_hash = self._registered_specs.get(cache_key)
+        if cached_hash is not None:
+            if cached_hash != spec_hash:
+                raise ValueError(
+                    "A different DecisionSpec already exists for this decision/version."
+                )
+            return cached_hash
         with self.connect() as connection:
             existing = connection.execute(
                 """
@@ -102,6 +116,7 @@ class SQLiteTraceStore:
                     raise ValueError(
                         "A different DecisionSpec already exists for this decision/version."
                     )
+                self._registered_specs[cache_key] = spec_hash
                 return spec_hash
 
             connection.execute(
@@ -112,9 +127,11 @@ class SQLiteTraceStore:
                 """,
                 (spec.decision_id, spec.version, spec_hash, payload),
             )
+        self._registered_specs[cache_key] = spec_hash
         return spec_hash
 
     def record_request(self, request: DecisionRequest) -> None:
+        self.initialize()
         with self.connect() as connection:
             connection.execute(
                 """
@@ -132,6 +149,7 @@ class SQLiteTraceStore:
             )
 
     def record_result(self, result: DecisionResult, *, kind: str = "teacher") -> None:
+        self.initialize()
         with self.connect() as connection:
             connection.execute(
                 """
@@ -143,6 +161,7 @@ class SQLiteTraceStore:
             )
 
     def record_label(self, label: LabelObservation) -> None:
+        self.initialize()
         with self.connect() as connection:
             connection.execute(
                 """
@@ -160,6 +179,7 @@ class SQLiteTraceStore:
             )
 
     def iter_request_ids(self, decision_id: str) -> Iterator[UUID]:
+        self.initialize()
         with self.connect() as connection:
             rows = connection.execute(
                 """
@@ -173,51 +193,81 @@ class SQLiteTraceStore:
             yield UUID(row["request_id"])
 
     def iter_traces(self, decision_id: str) -> Iterator[TraceRecord]:
+        """Stream complete traces with one ordered JOIN query and bounded memory."""
+        self.initialize()
         with self.connect() as connection:
-            request_rows = connection.execute(
+            rows = connection.execute(
                 """
-                SELECT request_json FROM decision_requests
-                WHERE decision_id = ?
-                ORDER BY event_time, request_id
+                SELECT
+                    r.request_id,
+                    r.request_json,
+                    o.id AS observation_id,
+                    o.observation_kind,
+                    o.result_json,
+                    l.observation_id AS label_observation_id,
+                    l.label_json
+                FROM decision_requests AS r
+                LEFT JOIN decision_observations AS o
+                    ON o.request_id = r.request_id
+                LEFT JOIN labels AS l
+                    ON l.request_id = r.request_id
+                WHERE r.decision_id = ?
+                ORDER BY
+                    r.event_time,
+                    r.request_id,
+                    o.id,
+                    l.observed_at,
+                    l.observation_id
                 """,
                 (decision_id,),
-            ).fetchall()
+            )
 
-            for request_row in request_rows:
-                request = DecisionRequest.model_validate_json(request_row["request_json"])
+            current_id: str | None = None
+            current_request: DecisionRequest | None = None
+            observations: list[ResultObservation] = []
+            labels: list[LabelObservation] = []
+            seen_observations: set[int] = set()
+            seen_labels: set[str] = set()
 
-                observation_rows = connection.execute(
-                    """
-                    SELECT observation_kind, result_json
-                    FROM decision_observations
-                    WHERE request_id = ?
-                    ORDER BY id
-                    """,
-                    (str(request.request_id),),
-                ).fetchall()
-                observations = tuple(
-                    ResultObservation(
-                        kind=row["observation_kind"],
-                        result=DecisionResult.model_validate_json(row["result_json"]),
+            for row in rows:
+                row_request_id = row["request_id"]
+                if current_id is not None and row_request_id != current_id:
+                    if current_request is None:
+                        raise RuntimeError("Trace stream lost its current request.")
+                    yield TraceRecord(
+                        request=current_request,
+                        observations=tuple(observations),
+                        labels=tuple(labels),
                     )
-                    for row in observation_rows
-                )
+                    observations = []
+                    labels = []
+                    seen_observations = set()
+                    seen_labels = set()
 
-                label_rows = connection.execute(
-                    """
-                    SELECT label_json FROM labels
-                    WHERE request_id = ?
-                    ORDER BY observed_at, observation_id
-                    """,
-                    (str(request.request_id),),
-                ).fetchall()
-                labels = tuple(
-                    LabelObservation.model_validate_json(row["label_json"])
-                    for row in label_rows
-                )
+                if current_id != row_request_id:
+                    current_id = row_request_id
+                    current_request = DecisionRequest.model_validate_json(
+                        row["request_json"]
+                    )
 
+                observation_id = row["observation_id"]
+                if observation_id is not None and observation_id not in seen_observations:
+                    seen_observations.add(observation_id)
+                    observations.append(
+                        ResultObservation(
+                            kind=row["observation_kind"],
+                            result=DecisionResult.model_validate_json(row["result_json"]),
+                        )
+                    )
+
+                label_id = row["label_observation_id"]
+                if label_id is not None and label_id not in seen_labels:
+                    seen_labels.add(label_id)
+                    labels.append(LabelObservation.model_validate_json(row["label_json"]))
+
+            if current_request is not None:
                 yield TraceRecord(
-                    request=request,
-                    observations=observations,
-                    labels=labels,
+                    request=current_request,
+                    observations=tuple(observations),
+                    labels=tuple(labels),
                 )
