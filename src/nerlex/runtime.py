@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from time import perf_counter
 from typing import Protocol
 
@@ -104,7 +105,11 @@ class FallbackDecision(StrictModel):
         if self.probabilities:
             if abs(sum(self.probabilities.values()) - 1.0) > 1e-6:
                 raise ValueError("Fallback probabilities must sum to 1.")
-            selected_key = str(self.selected).lower() if isinstance(self.selected, bool) else self.selected
+            selected_key = (
+                str(self.selected).lower()
+                if isinstance(self.selected, bool)
+                else self.selected
+            )
             if selected_key not in self.probabilities:
                 raise ValueError("Fallback selected value must exist in probabilities.")
         return self
