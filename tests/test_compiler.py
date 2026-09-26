@@ -205,7 +205,7 @@ def test_loaded_artifact_validates_identity(tmp_path: Path) -> None:
 def test_centroid_oov_prediction_is_finite_and_uniform() -> None:
     artifact = compile_snapshot(_snapshot(), CentroidConfig())
 
-    prediction = predict(artifact, {"text": "completely_unseen_oov_token"})
+    prediction = predict(artifact, "completely_unseen_oov_token")
 
     assert prediction.probabilities == pytest.approx(
         {"billing": 0.5, "technical": 0.5}
