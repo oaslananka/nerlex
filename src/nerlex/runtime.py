@@ -9,6 +9,7 @@ from typing import Protocol
 from pydantic import Field, model_validator
 
 from nerlex.calibration import (
+    CalibratedPrediction,
     TemperatureCalibrationArtifact,
     predict_calibrated,
 )
@@ -146,20 +147,7 @@ class LocalCascadeRuntime:
 
         threshold = self.bundle.gate.confidence_threshold
         if threshold is not None and local.confidence + _FLOAT_TOLERANCE >= threshold:
-            return DecisionResult(
-                request_id=request.request_id,
-                selected=local.selected,
-                probabilities=local.probabilities,
-                confidence=local.confidence,
-                calibrated=True,
-                backend=local.backend,
-                backend_version=self.bundle.compiler.compiler_version,
-                artifact_id=self.bundle.compiler.artifact_id,
-                artifact_ids=self.bundle.artifact_ids,
-                latency_ms=_elapsed_ms(started),
-                route=DecisionRoute.LOCAL,
-                abstained=False,
-            )
+            return self._local_result(request, local, started)
 
         abstain_reason = (
             "gate_abstain_all"
@@ -167,19 +155,10 @@ class LocalCascadeRuntime:
             else "below_calibrated_confidence_threshold"
         )
         if self.fallback is None:
-            return DecisionResult(
-                request_id=request.request_id,
-                selected=None,
-                probabilities=local.probabilities,
-                confidence=local.confidence,
-                calibrated=True,
-                backend=local.backend,
-                backend_version=self.bundle.compiler.compiler_version,
-                artifact_id=self.bundle.compiler.artifact_id,
-                artifact_ids=self.bundle.artifact_ids,
-                latency_ms=_elapsed_ms(started),
-                route=DecisionRoute.LOCAL,
-                abstained=True,
+            return self._local_result(
+                request,
+                local,
+                started,
                 abstain_reason=abstain_reason,
             )
 
@@ -212,6 +191,31 @@ class LocalCascadeRuntime:
             latency_ms=_elapsed_ms(started),
             route=DecisionRoute.FALLBACK,
             abstained=False,
+            abstain_reason=abstain_reason,
+        )
+
+    def _local_result(
+        self,
+        request: DecisionRequest,
+        prediction: CalibratedPrediction,
+        started: float,
+        *,
+        abstain_reason: str | None = None,
+    ) -> DecisionResult:
+        abstained = abstain_reason is not None
+        return DecisionResult(
+            request_id=request.request_id,
+            selected=None if abstained else prediction.selected,
+            probabilities=prediction.probabilities,
+            confidence=prediction.confidence,
+            calibrated=True,
+            backend=prediction.backend,
+            backend_version=self.bundle.compiler.compiler_version,
+            artifact_id=self.bundle.compiler.artifact_id,
+            artifact_ids=self.bundle.artifact_ids,
+            latency_ms=_elapsed_ms(started),
+            route=DecisionRoute.LOCAL,
+            abstained=abstained,
             abstain_reason=abstain_reason,
         )
 
