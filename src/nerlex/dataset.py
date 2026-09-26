@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import io
-import os
-import tempfile
 from collections.abc import Iterable
 from enum import StrEnum
 from pathlib import Path
@@ -12,6 +10,7 @@ from uuid import UUID
 
 from pydantic import Field, model_validator
 
+from nerlex.artifact_io import write_immutable_bytes
 from nerlex.hashing import canonical_json, sha256_hex
 from nerlex.spec import (
     Candidate,
@@ -228,10 +227,10 @@ def write_snapshot(snapshot: DatasetSnapshot, root: str | Path) -> Path:
         expected = hashlib.sha256(payload).hexdigest()
         if expected != artifact.sha256:
             raise ValueError(f"In-memory {split.value} content does not match manifest hash.")
-        _write_immutable(destination / artifact.filename, payload)
+        write_immutable_bytes(destination / artifact.filename, payload)
 
     manifest_payload = (canonical_json(snapshot.manifest) + "\n").encode("utf-8")
-    _write_immutable(destination / "manifest.json", manifest_payload)
+    write_immutable_bytes(destination / "manifest.json", manifest_payload)
     verify_snapshot(destination)
     return destination
 
@@ -419,32 +418,3 @@ def _parse_examples_bytes(payload: bytes, filename: str) -> list[DatasetExample]
     return parsed
 
 
-def _write_immutable(path: Path, payload: bytes) -> None:
-    if path.exists():
-        if path.read_bytes() != payload:
-            raise ValueError(f"Refusing to overwrite immutable snapshot file: {path.name}.")
-        return
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(
-        dir=path.parent,
-        prefix=f".{path.name}.",
-        suffix=".tmp",
-    )
-    temporary_path = Path(temporary_name)
-    try:
-        with os.fdopen(descriptor, "wb") as handle:
-            handle.write(payload)
-            handle.flush()
-            os.fsync(handle.fileno())
-
-        if path.exists():
-            if path.read_bytes() != payload:
-                raise ValueError(
-                    f"Refusing to overwrite immutable snapshot file: {path.name}."
-                )
-            return
-
-        os.replace(temporary_path, path)
-    finally:
-        temporary_path.unlink(missing_ok=True)
