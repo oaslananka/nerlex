@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Literal
@@ -151,7 +152,7 @@ class _ShadowReportIdentity(StrictModel):
         request_ids = tuple(decision.request_id for decision in self.decisions)
         if len(request_ids) != len(set(request_ids)):
             raise ValueError("Shadow report contains duplicate request IDs.")
-        if request_ids != tuple(sorted(request_ids, key=str)):
+        if request_ids != tuple(sorted(request_ids)):
             raise ValueError("Shadow report decisions must be sorted by request ID.")
         return self
 
@@ -187,7 +188,7 @@ def shadow_replay(
     if spec.kind is not DecisionKind.CHOICE:
         raise ShadowError("v0.1 shadow replay currently supports choice decisions only.")
 
-    ordered = sorted(records, key=lambda record: str(record.request.request_id))
+    ordered = sorted(records, key=lambda record: record.request.request_id)
     if not ordered:
         raise ShadowError("Shadow replay requires at least one trace.")
 
@@ -290,7 +291,19 @@ def write_shadow_report(report: ShadowReport, root: str | Path) -> Path:
 
 
 def load_shadow_report(path: str | Path) -> ShadowReport:
-    return ShadowReport.model_validate_json(Path(path).read_text(encoding="utf-8"))
+    raw = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise ValueError("Shadow report must be a JSON object.")
+
+    report_id = raw.get("report_id")
+    if not isinstance(report_id, str):
+        raise ValueError("Shadow report is missing its identity.")
+
+    identity_payload = {key: value for key, value in raw.items() if key != "report_id"}
+    if sha256_hex(identity_payload) != report_id:
+        raise ValueError("Shadow report identity does not match its content.")
+
+    return ShadowReport.model_validate(raw)
 
 
 def _teacher_selection(record: TraceRecord) -> tuple[str | None, bool]:
