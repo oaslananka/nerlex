@@ -109,6 +109,7 @@ The initial public contracts live in:
 - `nerlex.calibration` — held-out temperature calibration
 - `nerlex.evaluation` — empirical gates, sealed metrics, risk/coverage and AURC
 - `nerlex.runtime` — calibrated local decisions with explicit abstention and provider-neutral fallback
+- `nerlex.shadow` — deterministic side-effect-free replay evidence separating teacher fidelity from truth accuracy
 
 These APIs are still pre-1.0 and may change while the v0.1 lifecycle is built.
 

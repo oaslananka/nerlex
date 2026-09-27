@@ -19,4 +19,5 @@ The project follows Semantic Versioning once stable public contracts are establi
 - Deterministic multinomial Naive Bayes and cosine-centroid compiler baselines with safe JSON artifacts.
 - Temperature calibration artifacts, empirical confidence gates, and sealed selective evaluation metrics.
 - Calibrated local cascade runtime with explicit abstention, typed fallback, timeout/error semantics, and exact artifact lineage.
+- Deterministic immutable shadow replay evidence with separate teacher-agreement and outcome/truth metrics.
 - Public contributor, security, and agent guidance.
