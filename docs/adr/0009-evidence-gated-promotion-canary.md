@@ -1,6 +1,6 @@
 # ADR-0009: Promotion is evidence-gated and canary rollout is deterministic
 
-- Status: Accepted
+- Status: Proposed
 - Date: 2026-09-30
 
 ## Context
@@ -104,18 +104,30 @@ plane.
 
 ### 4. Canary assignment is deterministic, stable, and independent of model output
 
-Canary/control assignment happens before local inference and uses only stable,
-non-sensitive identity such as:
+Canary/control assignment happens before local inference. The integration supplies an
+opaque `assignment_key` for the intended exposure unit. That key must be stable for the
+lifetime of the rollout decision and across retries that should remain in the same cohort.
+
+Examples of an exposure unit may be a workflow item, account, tenant, device, or another
+application-defined subject. The core package does not infer this identity from request
+content. Raw sensitive values should not be used as assignment keys; integrations should
+prefer opaque or already-pseudonymous stable identifiers.
+
+The assignment hash is:
 
 ```text
-hash(assignment_version, assignment_seed, decision_id, spec_version, request_id)
+hash(assignment_version, assignment_seed, decision_id, spec_version, assignment_key)
 ```
 
 The hash is mapped to a stable bucket in `[0, 1)`.
 
-A request is assigned to the canary cohort when its bucket is below the plan's rollout
-fraction. Increasing the fraction therefore produces nested cohorts: requests already in
-the canary cohort stay there.
+An assignment key is placed in the canary cohort when its bucket is below the plan's
+rollout fraction. Increasing the fraction therefore produces nested cohorts: keys already
+in the canary cohort stay there as long as the assignment version and seed remain stable.
+
+The per-call `request_id` remains evidence identity and must still be recorded, but it is
+not the cohort key unless an integration intentionally defines each request as the stable
+exposure unit and preserves that ID across retries.
 
 Assignment must not depend on request state, predicted label, model confidence, truth,
 teacher output, latency, or later outcome. This avoids confidence-dependent rollout
@@ -180,12 +192,17 @@ requirements.
 ### 8. Failure semantics
 
 The first implementation should fail closed on control-plane/evidence errors while
-protecting authoritative request handling:
+protecting authoritative request handling.
+
+Here, "reject" means the requested assessment/plan/assignment operation returns an
+explicit error and produces no activatable artifact or cohort decision. A rejected
+control-plane operation must not mutate the currently active plan or traffic state.
 
 - incompatible promotion evidence: reject assessment construction;
 - failing promotion criteria: produce a valid failed assessment, not an exception;
 - canary plan referencing a failed/incompatible assessment: reject plan construction;
 - invalid rollout fraction/assignment configuration: reject plan construction;
+- missing/invalid assignment key: reject cohort assignment before inference;
 - request/spec incompatibility: reject before cohort assignment or inference;
 - canary local gate abstention: use existing fallback semantics;
 - canary local runtime failure: must be observable and must not be reported as a
@@ -193,9 +210,15 @@ protecting authoritative request handling:
 - control/fallback failure: preserve the explicit runtime failure semantics from
   ADR-0007.
 
+The core library does not silently reinterpret an assignment/control-plane failure as a
+successful control decision. An integration may explicitly fail safe to its control path
+when availability policy requires it, but that recovery must be intentional and
+observable so evidence can distinguish "assigned control" from "canary assignment failed
+and control recovery executed".
+
 Whether an application converts a local-runtime exception into an emergency control-path
-retry is an integration policy and must be explicit; the core library must not silently
-hide such failures.
+retry is likewise an integration policy and must be explicit; the core library must not
+silently hide such failures.
 
 ## Initial implementation boundary
 
