@@ -109,9 +109,9 @@ from nerlex.trace import ResultObservation, TraceRecord, export_jsonl, load_json
 
 __all__ = [
     "CalibratedPrediction",
+    "CalibrationError",
     "CanaryAssignment",
     "CanaryPlan",
-    "CalibrationError",
     "Candidate",
     "CandidateMode",
     "CaptureRun",

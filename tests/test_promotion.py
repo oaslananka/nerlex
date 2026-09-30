@@ -244,8 +244,11 @@ def test_zero_and_full_rollout_are_exact() -> None:
             "spec_version": assessment.spec_version,
             "assignment_key": f"subject-{index}",
         }
-        assert assign_canary(zero, **kwargs).cohort == "control"
-        assert assign_canary(full, **kwargs).cohort == "canary"
+        zero_assignment = assign_canary(zero, **kwargs)
+        full_assignment = assign_canary(full, **kwargs)
+        assert zero_assignment.cohort == "control"
+        assert full_assignment.cohort == "canary"
+        assert 0.0 <= full_assignment.bucket < 1.0
 
 
 def test_canary_ramp_chain_requires_stable_assignment_seed() -> None:

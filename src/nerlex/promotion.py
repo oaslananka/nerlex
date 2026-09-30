@@ -20,7 +20,7 @@ CANARY_IMPLEMENTATION_VERSION: Literal["1"] = "1"
 CANARY_ASSIGNMENT_VERSION: Literal["sha256-bucket-v1"] = "sha256-bucket-v1"
 
 _SHA256_PATTERN = r"^[a-f0-9]{64}$"
-_BUCKET_SPACE = 1 << 64
+_BUCKET_SPACE = 1 << 52
 
 
 class PromotionError(ValueError):
@@ -62,9 +62,7 @@ _EXPECTED_CRITERIA: tuple[PromotionCriterionName, ...] = (
 )
 
 
-class _PromotionAssessmentIdentity(StrictModel):
-    schema_version: Literal[1] = PROMOTION_SCHEMA_VERSION
-    promotion_version: Literal["1"] = PROMOTION_IMPLEMENTATION_VERSION
+class DecisionLineage(StrictModel):
     decision_id: str = Field(
         pattern=r"^[a-z0-9][a-z0-9._-]*$",
         min_length=1,
@@ -75,6 +73,11 @@ class _PromotionAssessmentIdentity(StrictModel):
     compiler_artifact_id: str = Field(pattern=_SHA256_PATTERN)
     calibration_artifact_id: str = Field(pattern=_SHA256_PATTERN)
     gate_artifact_id: str = Field(pattern=_SHA256_PATTERN)
+
+
+class _PromotionAssessmentIdentity(DecisionLineage):
+    schema_version: Literal[1] = PROMOTION_SCHEMA_VERSION
+    promotion_version: Literal["1"] = PROMOTION_IMPLEMENTATION_VERSION
     evaluation_report_id: str = Field(pattern=_SHA256_PATTERN)
     shadow_report_id: str = Field(pattern=_SHA256_PATTERN)
     policy: PromotionPolicy
@@ -147,21 +150,11 @@ class PromotionAssessment(_PromotionAssessmentIdentity):
         return self
 
 
-class _CanaryPlanIdentity(StrictModel):
+class _CanaryPlanIdentity(DecisionLineage):
     schema_version: Literal[1] = CANARY_SCHEMA_VERSION
     canary_version: Literal["1"] = CANARY_IMPLEMENTATION_VERSION
     assignment_version: Literal["sha256-bucket-v1"] = CANARY_ASSIGNMENT_VERSION
     assessment_id: str = Field(pattern=_SHA256_PATTERN)
-    decision_id: str = Field(
-        pattern=r"^[a-z0-9][a-z0-9._-]*$",
-        min_length=1,
-        max_length=128,
-    )
-    spec_version: str = Field(min_length=1, max_length=64)
-    decision_spec_hash: str = Field(pattern=_SHA256_PATTERN)
-    compiler_artifact_id: str = Field(pattern=_SHA256_PATTERN)
-    calibration_artifact_id: str = Field(pattern=_SHA256_PATTERN)
-    gate_artifact_id: str = Field(pattern=_SHA256_PATTERN)
     rollout_fraction: float = Field(ge=0.0, le=1.0)
     assignment_seed: str = Field(min_length=1, max_length=256)
     previous_plan_id: str | None = Field(default=None, pattern=_SHA256_PATTERN)
@@ -315,7 +308,7 @@ def assign_canary(
             "assignment_key": assignment_key,
         }
     )
-    bucket_value = int(digest[:16], 16)
+    bucket_value = int(digest[:13], 16)
     bucket = bucket_value / _BUCKET_SPACE
     cohort: Literal["control", "canary"] = (
         "canary" if bucket < plan.rollout_fraction else "control"
