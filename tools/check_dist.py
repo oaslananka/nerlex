@@ -3,6 +3,7 @@ from __future__ import annotations
 import tarfile
 import tomllib
 import zipfile
+from collections.abc import Iterable
 from email.parser import BytesParser
 from pathlib import Path
 
@@ -14,7 +15,9 @@ class DistributionCheckError(RuntimeError):
 def main() -> None:
     root = Path(__file__).resolve().parents[1]
     dist = root / "dist"
-    project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    project = tomllib.loads(
+        (root / "pyproject.toml").read_text(encoding="utf-8")
+    )["project"]
     name = str(project["name"])
     version = str(project["version"])
 
@@ -27,16 +30,13 @@ def main() -> None:
     print(f"distribution check passed: {wheel.name}, {sdist.name}")
 
 
-def _one(paths: object, label: str) -> Path:
-    matches = tuple(paths)  # type: ignore[arg-type]
+def _one(paths: Iterable[Path], label: str) -> Path:
+    matches = tuple(paths)
     if len(matches) != 1:
         raise DistributionCheckError(
             f"expected exactly one {label}, found {len(matches)}"
         )
-    path = matches[0]
-    if not isinstance(path, Path):
-        raise DistributionCheckError(f"invalid {label} path")
-    return path
+    return matches[0]
 
 
 def _check_wheel(path: Path, *, name: str, version: str) -> None:
