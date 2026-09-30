@@ -217,12 +217,11 @@ def test_conflicting_truth_at_same_priority_fails_closed() -> None:
         ),
     )
 
+    bundle = _bundle(records)
+    config = ShadowConfig(truth_priority=(LabelSource.HUMAN,))
+
     with pytest.raises(ShadowError, match="Conflicting human truth labels"):
-        shadow_replay(
-            _bundle(records),
-            [conflict],
-            config=ShadowConfig(truth_priority=(LabelSource.HUMAN,)),
-        )
+        shadow_replay(bundle, [conflict], config=config)
 
 
 def test_report_tampering_is_detected(tmp_path: Path) -> None:
