@@ -23,6 +23,8 @@ from nerlex.spec import (
 )
 from nerlex.trace import TraceRecord
 
+_SHA256_PATTERN = r"^[a-f0-9]{64}$"
+
 
 class DatasetSplit(StrEnum):
     TRAIN = "train"
@@ -73,13 +75,13 @@ class DatasetExample(StrictModel):
 class SplitArtifact(StrictModel):
     filename: str = Field(min_length=1, max_length=128)
     count: int = Field(ge=0)
-    sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    sha256: str = Field(pattern=_SHA256_PATTERN)
 
 
 class _SnapshotIdentity(StrictModel):
     schema_version: Literal[1] = 1
     decision_spec: DecisionSpec
-    spec_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+    spec_hash: str = Field(pattern=_SHA256_PATTERN)
     config: SnapshotConfig
     source_trace_count: int = Field(ge=0)
     included_count: int = Field(ge=0)
@@ -101,7 +103,7 @@ class _SnapshotIdentity(StrictModel):
 
 
 class SnapshotManifest(_SnapshotIdentity):
-    snapshot_id: str = Field(pattern=r"^[a-f0-9]{64}$")
+    snapshot_id: str = Field(pattern=_SHA256_PATTERN)
 
     @model_validator(mode="after")
     def _validate_snapshot_id(self) -> SnapshotManifest:
