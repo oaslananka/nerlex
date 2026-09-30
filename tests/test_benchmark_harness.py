@@ -3,8 +3,8 @@ from __future__ import annotations
 import gc
 
 import pytest
-
 from benchmarks import inference as benchmark
+
 from nerlex.compiler import CentroidConfig, MultinomialNBConfig
 
 
