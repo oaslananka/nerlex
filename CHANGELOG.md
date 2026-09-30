@@ -23,4 +23,5 @@ The project follows Semantic Versioning once stable public contracts are establi
 - Evidence-gated promotion assessments and immutable canary plans with stable assignment-key cohorting.
 - Cohort-aware live canary serving with shared fallback semantics and immutable route/cohort decision evidence.
 - Truth-bearing immutable canary rollout reports with separate control, local, and canary-fallback risk metrics.
+- Explicit immutable advance/hold/rollback assessments driven by workload-specific rollout evidence policies.
 - Public contributor, security, and agent guidance.

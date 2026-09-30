@@ -61,6 +61,7 @@ The first milestone intentionally stays small:
 - evidence-gated promotion assessment and deterministic canary planning
 - cohort-aware live canary serving with immutable decision evidence
 - truth-bearing immutable canary rollout reports
+- explicit evidence-based advance / hold / rollback assessments
 - CPU-only reproducible demo
 
 Not in v0.1: dashboard, hosted SaaS, Kubernetes, custom foundation-model training, autonomous retraining, or autonomous production promotion.
@@ -116,6 +117,7 @@ The initial public contracts live in:
 - `nerlex.promotion` — evidence-gated promotion assessments and immutable deterministic canary plans
 - `nerlex.canary` — cohort-aware authoritative serving with immutable route/cohort decision evidence
 - `nerlex.rollout` — truth-bearing live canary aggregation with separate cohort/route risk evidence
+- `nerlex.rollout_policy` — immutable advance/hold/rollback recommendations without traffic mutation
 
 These APIs are still pre-1.0 and may change while the v0.1 lifecycle is built.
 
