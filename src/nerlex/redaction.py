@@ -41,28 +41,39 @@ def _redact_parts(current: Any, parts: tuple[str, ...]) -> None:
     if not parts:
         return
 
-    head, *tail_items = parts
-    tail = tuple(tail_items)
-
     if isinstance(current, dict):
-        if head not in current:
-            return
-        if not tail:
-            current[head] = REDACTED
-            return
-        _redact_parts(current[head], tail)
+        _redact_mapping(current, parts)
         return
 
     if isinstance(current, list):
-        if head.isdigit():
-            index = int(head)
-            if index >= len(current):
-                return
-            if not tail:
-                current[index] = REDACTED
-                return
-            _redact_parts(current[index], tail)
-            return
+        _redact_list(current, parts)
 
+
+def _redact_mapping(current: dict[str, Any], parts: tuple[str, ...]) -> None:
+    head, tail = _split_path(parts)
+    if head not in current:
+        return
+    if not tail:
+        current[head] = REDACTED
+        return
+    _redact_parts(current[head], tail)
+
+
+def _redact_list(current: list[Any], parts: tuple[str, ...]) -> None:
+    head, tail = _split_path(parts)
+    if not head.isdigit():
         for item in current:
             _redact_parts(item, parts)
+        return
+
+    index = int(head)
+    if index >= len(current):
+        return
+    if not tail:
+        current[index] = REDACTED
+        return
+    _redact_parts(current[index], tail)
+
+
+def _split_path(parts: tuple[str, ...]) -> tuple[str, tuple[str, ...]]:
+    return parts[0], parts[1:]

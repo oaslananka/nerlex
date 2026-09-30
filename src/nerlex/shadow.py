@@ -188,82 +188,20 @@ def shadow_replay(
     if spec.kind is not DecisionKind.CHOICE:
         raise ShadowError("v0.1 shadow replay currently supports choice decisions only.")
 
-    ordered = sorted(records, key=lambda record: record.request.request_id)
-    if not ordered:
-        raise ShadowError("Shadow replay requires at least one trace.")
-
-    request_ids = [record.request.request_id for record in ordered]
-    if len(request_ids) != len(set(request_ids)):
-        raise ShadowError("Shadow replay input contains duplicate request IDs.")
-
-    source_trace_sha256 = sha256_hex(tuple(ordered))
-    threshold = bundle.gate.confidence_threshold
-    decisions: list[ShadowDecision] = []
-
-    for record in ordered:
-        try:
-            validate_request(spec, record.request)
-        except ValueError as exc:
-            raise ShadowError(
-                f"Trace request {record.request.request_id} does not match the runtime spec."
-            ) from exc
-
-        prediction = predict_calibrated(
-            bundle.compiler,
-            bundle.calibration,
-            record.request.state,
+    ordered = _prepare_shadow_records(records)
+    source_trace_sha256 = sha256_hex(ordered)
+    spec_candidates = {candidate.key for candidate in spec.candidates}
+    decisions = tuple(
+        _shadow_decision(
+            bundle,
+            record,
+            truth_priority=resolved_config.truth_priority,
+            confidence_threshold=bundle.gate.confidence_threshold,
+            spec_candidates=spec_candidates,
         )
-        local_eligible = (
-            threshold is not None
-            and prediction.confidence + _FLOAT_TOLERANCE >= threshold
-        )
-        teacher_selected, teacher_ambiguous = _teacher_selection(record)
-        truth = _resolve_truth(record, resolved_config.truth_priority)
-        _validate_resolved_value(
-            prediction.selected,
-            spec_candidates={candidate.key for candidate in spec.candidates},
-            request_id=record.request.request_id,
-            role="local prediction",
-        )
-        if teacher_selected is not None:
-            _validate_resolved_value(
-                teacher_selected,
-                spec_candidates={candidate.key for candidate in spec.candidates},
-                request_id=record.request.request_id,
-                role="teacher decision",
-            )
-        if truth is not None:
-            _validate_resolved_value(
-                truth.value,
-                spec_candidates={candidate.key for candidate in spec.candidates},
-                request_id=record.request.request_id,
-                role="truth label",
-            )
-
-        decisions.append(
-            ShadowDecision(
-                request_id=record.request.request_id,
-                local_selected=prediction.selected,
-                confidence=prediction.confidence,
-                local_eligible=local_eligible,
-                fallback_required=not local_eligible,
-                teacher_selected=teacher_selected,
-                teacher_ambiguous=teacher_ambiguous,
-                local_matches_teacher=(
-                    prediction.selected == teacher_selected
-                    if teacher_selected is not None and not teacher_ambiguous
-                    else None
-                ),
-                truth=truth.value if truth is not None else None,
-                truth_source=truth.source if truth is not None else None,
-                local_truth_correct=(
-                    prediction.selected == truth.value if truth is not None else None
-                ),
-            )
-        )
-
-    decision_tuple = tuple(decisions)
-    summary = _summarize(decision_tuple)
+        for record in ordered
+    )
+    summary = _summarize(decisions)
     identity = _ShadowReportIdentity(
         decision_spec_hash=sha256_hex(spec),
         compiler_artifact_id=bundle.compiler.artifact_id,
@@ -272,13 +210,132 @@ def shadow_replay(
         source_trace_sha256=source_trace_sha256,
         source_trace_count=len(ordered),
         config=resolved_config,
-        decisions=decision_tuple,
+        decisions=decisions,
         summary=summary,
     )
     return ShadowReport(
         report_id=sha256_hex(identity),
         **identity.model_dump(mode="python"),
     )
+
+
+def _prepare_shadow_records(records: Iterable[TraceRecord]) -> tuple[TraceRecord, ...]:
+    ordered = tuple(sorted(records, key=lambda record: record.request.request_id))
+    if not ordered:
+        raise ShadowError("Shadow replay requires at least one trace.")
+
+    request_ids = tuple(record.request.request_id for record in ordered)
+    if len(request_ids) != len(set(request_ids)):
+        raise ShadowError("Shadow replay input contains duplicate request IDs.")
+    return ordered
+
+
+def _shadow_decision(
+    bundle: RuntimeBundle,
+    record: TraceRecord,
+    *,
+    truth_priority: tuple[LabelSource, ...],
+    confidence_threshold: float | None,
+    spec_candidates: set[str],
+) -> ShadowDecision:
+    spec = bundle.compiler.decision_spec
+    try:
+        validate_request(spec, record.request)
+    except ValueError as exc:
+        raise ShadowError(
+            f"Trace request {record.request.request_id} does not match the runtime spec."
+        ) from exc
+
+    prediction = predict_calibrated(
+        bundle.compiler,
+        bundle.calibration,
+        record.request.state,
+    )
+    local_eligible = (
+        confidence_threshold is not None
+        and prediction.confidence + _FLOAT_TOLERANCE >= confidence_threshold
+    )
+    teacher_selected, teacher_ambiguous = _teacher_selection(record)
+    truth = _resolve_truth(record, truth_priority)
+
+    _validate_resolved_value(
+        prediction.selected,
+        spec_candidates=spec_candidates,
+        request_id=record.request.request_id,
+        role="local prediction",
+    )
+    _validate_optional_resolved_value(
+        teacher_selected,
+        spec_candidates=spec_candidates,
+        request_id=record.request.request_id,
+        role="teacher decision",
+    )
+    _validate_optional_truth(
+        truth,
+        spec_candidates=spec_candidates,
+        request_id=record.request.request_id,
+    )
+
+    return ShadowDecision(
+        request_id=record.request.request_id,
+        local_selected=prediction.selected,
+        confidence=prediction.confidence,
+        local_eligible=local_eligible,
+        fallback_required=not local_eligible,
+        teacher_selected=teacher_selected,
+        teacher_ambiguous=teacher_ambiguous,
+        local_matches_teacher=_teacher_match(
+            prediction.selected,
+            teacher_selected,
+            teacher_ambiguous,
+        ),
+        truth=truth.value if truth is not None else None,
+        truth_source=truth.source if truth is not None else None,
+        local_truth_correct=(
+            prediction.selected == truth.value if truth is not None else None
+        ),
+    )
+
+
+def _validate_optional_resolved_value(
+    value: str | None,
+    *,
+    spec_candidates: set[str],
+    request_id: UUID,
+    role: str,
+) -> None:
+    if value is not None:
+        _validate_resolved_value(
+            value,
+            spec_candidates=spec_candidates,
+            request_id=request_id,
+            role=role,
+        )
+
+
+def _validate_optional_truth(
+    truth: _ResolvedTruth | None,
+    *,
+    spec_candidates: set[str],
+    request_id: UUID,
+) -> None:
+    if truth is not None:
+        _validate_resolved_value(
+            truth.value,
+            spec_candidates=spec_candidates,
+            request_id=request_id,
+            role="truth label",
+        )
+
+
+def _teacher_match(
+    local_selected: str,
+    teacher_selected: str | None,
+    teacher_ambiguous: bool,
+) -> bool | None:
+    if teacher_selected is None or teacher_ambiguous:
+        return None
+    return local_selected == teacher_selected
 
 
 def write_shadow_report(report: ShadowReport, root: str | Path) -> Path:
