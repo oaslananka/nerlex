@@ -15,21 +15,22 @@ compiler families and records:
 - snapshot/compile/calibration/gate setup time;
 - class/token counts and runner metadata.
 
-The benchmark intentionally uses only Nerlex's existing runtime dependencies. The CI workflow
-uses an exact-pinned, binary-wheel-only dependency set under `benchmarks/requirements.txt`. It
-does not install NumPy, ONNX Runtime, native extensions, or accelerators.
+The benchmark intentionally uses only Nerlex's existing dependencies. Both normal CI and
+the benchmark workflow resolve from the repository's canonical `uv.lock`; there is no
+second benchmark-specific dependency lock. The benchmark does not add NumPy, ONNX
+Runtime, native extensions, or accelerators.
 
 ## Run locally
 
 ```bash
-python -m pip install -e ".[dev]"
-python benchmarks/inference.py
+uv sync --locked --extra dev --no-install-project --no-build
+uv run --no-sync --no-build python benchmarks/inference.py
 ```
 
 For a shorter exploratory run:
 
 ```bash
-python benchmarks/inference.py --iterations 100 --warmup 20
+uv run --no-sync --no-build python benchmarks/inference.py --iterations 100 --warmup 20
 ```
 
 The output path is intentionally fixed to `benchmark.json` so CI cannot be redirected to
