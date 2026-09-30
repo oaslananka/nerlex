@@ -21,4 +21,5 @@ The project follows Semantic Versioning once stable public contracts are establi
 - Calibrated local cascade runtime with explicit abstention, typed fallback, timeout/error semantics, and exact artifact lineage.
 - Deterministic immutable shadow replay evidence with separate teacher-agreement and outcome/truth metrics.
 - Evidence-gated promotion assessments and immutable canary plans with stable assignment-key cohorting.
+- Cohort-aware live canary serving with shared fallback semantics and immutable route/cohort decision evidence.
 - Public contributor, security, and agent guidance.
