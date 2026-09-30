@@ -66,6 +66,65 @@ CREATE INDEX IF NOT EXISTS idx_labels_request
 """
 
 
+class _TraceAccumulator:
+    """Assemble one TraceRecord from ordered JOIN rows."""
+
+    def __init__(self) -> None:
+        self.request_id: str | None = None
+        self.request: DecisionRequest | None = None
+        self.observations: list[ResultObservation] = []
+        self.labels: list[LabelObservation] = []
+        self.seen_observations: set[int] = set()
+        self.seen_labels: set[str] = set()
+
+    def consume(self, row: sqlite3.Row) -> TraceRecord | None:
+        row_request_id = str(row["request_id"])
+        completed = None
+        if self.request_id != row_request_id:
+            completed = self.finish()
+            self._start(row_request_id, row)
+
+        self._append_observation(row)
+        self._append_label(row)
+        return completed
+
+    def finish(self) -> TraceRecord | None:
+        if self.request is None:
+            return None
+        return TraceRecord(
+            request=self.request,
+            observations=tuple(self.observations),
+            labels=tuple(self.labels),
+        )
+
+    def _start(self, request_id: str, row: sqlite3.Row) -> None:
+        self.request_id = request_id
+        self.request = DecisionRequest.model_validate_json(row["request_json"])
+        self.observations = []
+        self.labels = []
+        self.seen_observations = set()
+        self.seen_labels = set()
+
+    def _append_observation(self, row: sqlite3.Row) -> None:
+        observation_id = row["observation_id"]
+        if observation_id is None or observation_id in self.seen_observations:
+            return
+        self.seen_observations.add(observation_id)
+        self.observations.append(
+            ResultObservation(
+                kind=row["observation_kind"],
+                result=DecisionResult.model_validate_json(row["result_json"]),
+            )
+        )
+
+    def _append_label(self, row: sqlite3.Row) -> None:
+        label_id = row["label_observation_id"]
+        if label_id is None or label_id in self.seen_labels:
+            return
+        self.seen_labels.add(label_id)
+        self.labels.append(LabelObservation.model_validate_json(row["label_json"]))
+
+
 class SQLiteTraceStore:
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
@@ -222,52 +281,12 @@ class SQLiteTraceStore:
                 (decision_id,),
             )
 
-            current_id: str | None = None
-            current_request: DecisionRequest | None = None
-            observations: list[ResultObservation] = []
-            labels: list[LabelObservation] = []
-            seen_observations: set[int] = set()
-            seen_labels: set[str] = set()
-
+            accumulator = _TraceAccumulator()
             for row in rows:
-                row_request_id = row["request_id"]
-                if current_id is not None and row_request_id != current_id:
-                    if current_request is None:
-                        raise RuntimeError("Trace stream lost its current request.")
-                    yield TraceRecord(
-                        request=current_request,
-                        observations=tuple(observations),
-                        labels=tuple(labels),
-                    )
-                    observations = []
-                    labels = []
-                    seen_observations = set()
-                    seen_labels = set()
+                completed = accumulator.consume(row)
+                if completed is not None:
+                    yield completed
 
-                if current_id != row_request_id:
-                    current_id = row_request_id
-                    current_request = DecisionRequest.model_validate_json(
-                        row["request_json"]
-                    )
-
-                observation_id = row["observation_id"]
-                if observation_id is not None and observation_id not in seen_observations:
-                    seen_observations.add(observation_id)
-                    observations.append(
-                        ResultObservation(
-                            kind=row["observation_kind"],
-                            result=DecisionResult.model_validate_json(row["result_json"]),
-                        )
-                    )
-
-                label_id = row["label_observation_id"]
-                if label_id is not None and label_id not in seen_labels:
-                    seen_labels.add(label_id)
-                    labels.append(LabelObservation.model_validate_json(row["label_json"]))
-
-            if current_request is not None:
-                yield TraceRecord(
-                    request=current_request,
-                    observations=tuple(observations),
-                    labels=tuple(labels),
-                )
+            final = accumulator.finish()
+            if final is not None:
+                yield final

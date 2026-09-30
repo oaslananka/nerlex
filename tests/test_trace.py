@@ -1,11 +1,16 @@
+from datetime import UTC, datetime, timedelta
+from uuid import UUID
+
 from nerlex.capture import capture
 from nerlex.spec import (
     Candidate,
     CandidateMode,
     DecisionKind,
+    DecisionRequest,
     DecisionResult,
     DecisionRoute,
     DecisionSpec,
+    LabelObservation,
     LabelSource,
 )
 from nerlex.store import SQLiteTraceStore
@@ -70,3 +75,45 @@ def test_join_replay_deduplicates_observations_and_labels(tmp_path) -> None:
 
     assert [item.result.backend for item in trace.observations] == ["teacher-a", "teacher-b"]
     assert [item.source for item in trace.labels] == [LabelSource.HUMAN, LabelSource.OUTCOME]
+
+
+def test_join_replay_flushes_request_boundaries_in_event_order(tmp_path) -> None:
+    store = SQLiteTraceStore(tmp_path / "nerlex.db")
+    spec = _spec()
+    store.register_spec(spec)
+    started = datetime(2026, 1, 1, tzinfo=UTC)
+
+    first = DecisionRequest(
+        request_id=UUID(int=101),
+        decision_id=spec.decision_id,
+        spec_version=spec.version,
+        event_time=started,
+        state={"text": "first"},
+    )
+    second = DecisionRequest(
+        request_id=UUID(int=102),
+        decision_id=spec.decision_id,
+        spec_version=spec.version,
+        event_time=started + timedelta(seconds=1),
+        state={"text": "second"},
+    )
+
+    for request, value in ((second, "technical"), (first, "billing")):
+        store.record_request(request)
+        store.record_label(
+            LabelObservation(
+                request_id=request.request_id,
+                source=LabelSource.OUTCOME,
+                value=value,
+                source_id="boundary-test",
+                observed_at=request.event_time,
+            )
+        )
+
+    traces = list(store.iter_traces(spec.decision_id))
+
+    assert [trace.request.request_id for trace in traces] == [
+        first.request_id,
+        second.request_id,
+    ]
+    assert [trace.labels[0].value for trace in traces] == ["billing", "technical"]
