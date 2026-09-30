@@ -45,7 +45,7 @@ jobs:
         run: uv sync --locked --extra dev --no-install-project --no-build
 
       - name: Ruff
-        run: uv run --no-sync --no-build ruff check src tests
+        run: uv run --no-sync --no-build ruff check src tests tools
 
       - name: Mypy
         run: uv run --no-sync --no-build mypy src
@@ -55,3 +55,6 @@ jobs:
 
       - name: Build
         run: uv run --no-sync --no-build python -m build
+
+      - name: Check built distributions
+        run: uv run --no-sync --no-build python tools/check_dist.py

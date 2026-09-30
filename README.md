@@ -4,7 +4,7 @@
 
 Nerlex is an open-source **AI Decision Compiler** for repetitive typed decisions. It captures an existing decision path, builds a reproducible dataset, compiles smaller local candidates, calibrates uncertainty, evaluates risk-versus-coverage, and eventually runs proven local decisions behind explicit abstention and fallback gates.
 
-> **Status:** early development. The current repository is establishing the v0.1 decision contracts, provenance model, trace store, and reproducibility foundations. No production-safety or benchmark claims are made yet.
+> **Status:** pre-alpha. The v0.1 decision-compilation lifecycle is implemented end-to-end through evidence-gated rollout recommendations, but Nerlex is not yet advertised as production-ready and has not yet published a package release. Reference benchmarks are engineering baselines, not production SLO claims.
 
 ## Why Nerlex?
 
@@ -90,19 +90,19 @@ uv run python -m build
 Run the local/fallback example:
 
 ```bash
-python examples/local_fallback.py
+uv run python examples/local_fallback.py
 ```
 
 CLI smoke test:
 
 ```bash
-nerlex version
-nerlex doctor
+uv run nerlex version
+uv run nerlex doctor
 ```
 
-## Current foundation
+## Current implementation
 
-The initial public contracts live in:
+The public modules currently live in:
 
 - `nerlex.spec` — typed decision/request/result/provenance models
 - `nerlex.hashing` — deterministic canonical serialization and hashing
@@ -119,20 +119,21 @@ The initial public contracts live in:
 - `nerlex.rollout` — truth-bearing live canary aggregation with separate cohort/route risk evidence
 - `nerlex.rollout_policy` — immutable advance/hold/rollback recommendations without traffic mutation
 
-These APIs are still pre-1.0 and may change while the v0.1 lifecycle is built.
+These APIs are still pre-1.0 and may change while the first release surface is hardened.
+
+## Distribution status
+
+Nerlex has not yet published a PyPI or GitHub release. The Git repository is currently the
+canonical distribution source. Release preparation is documented in
+[docs/releasing.md](docs/releasing.md); publishing remains an explicit maintainer action.
 
 ## Roadmap
 
-1. Decision contracts and provenance
-2. Capture API and trace storage
-3. Immutable dataset snapshots
-4. Local compiler baselines
-5. Calibration and selective evaluation
-6. Artifact packaging
-7. Local/fallback cascade runtime
-8. Shadow evaluation
-9. Promotion/canary lifecycle
-10. Portable optimized inference
+1. **v0.1 decision-compilation lifecycle** — implemented through explicit rollout recommendations
+2. **Release/distribution hardening** — current
+3. **Representative real-workload validation** — next evidence milestone
+4. **Portable optimized inference** — deferred by ADR-0010 until measured need exists
+5. **Hosted/dashboard/platform layers** — outside the current v0.1 scope
 
 ## Contributing
 
