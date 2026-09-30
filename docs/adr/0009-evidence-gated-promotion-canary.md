@@ -1,6 +1,6 @@
 # ADR-0009: Promotion is evidence-gated and canary rollout is deterministic
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-30
 
 ## Context
