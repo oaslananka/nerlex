@@ -20,4 +20,5 @@ The project follows Semantic Versioning once stable public contracts are establi
 - Temperature calibration artifacts, empirical confidence gates, and sealed selective evaluation metrics.
 - Calibrated local cascade runtime with explicit abstention, typed fallback, timeout/error semantics, and exact artifact lineage.
 - Deterministic immutable shadow replay evidence with separate teacher-agreement and outcome/truth metrics.
+- Evidence-gated promotion assessments and immutable canary plans with stable assignment-key cohorting.
 - Public contributor, security, and agent guidance.
