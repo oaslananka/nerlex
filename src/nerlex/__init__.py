@@ -89,6 +89,14 @@ from nerlex.rollout import (
     load_canary_rollout_report,
     write_canary_rollout_report,
 )
+from nerlex.rollout_policy import (
+    RolloutAction,
+    RolloutActionAssessment,
+    RolloutActionPolicy,
+    assess_rollout_action,
+    load_rollout_action_assessment,
+    write_rollout_action_assessment,
+)
 from nerlex.runtime import (
     FallbackDecision,
     FallbackExecutionError,
@@ -176,6 +184,9 @@ __all__ = [
     "PromotionPolicy",
     "ResultObservation",
     "RiskCoveragePoint",
+    "RolloutAction",
+    "RolloutActionAssessment",
+    "RolloutActionPolicy",
     "RolloutConfig",
     "RolloutDecision",
     "RolloutError",
@@ -202,6 +213,7 @@ __all__ = [
     "TraceRecord",
     "apply_temperature",
     "assess_promotion",
+    "assess_rollout_action",
     "assign_canary",
     "build_snapshot",
     "calibrate_prediction",
@@ -222,6 +234,7 @@ __all__ = [
     "load_gate_artifact",
     "load_jsonl",
     "load_promotion_assessment",
+    "load_rollout_action_assessment",
     "load_shadow_report",
     "observe_outcome",
     "predict",
@@ -237,6 +250,7 @@ __all__ = [
     "write_evaluation_report",
     "write_gate_artifact",
     "write_promotion_assessment",
+    "write_rollout_action_assessment",
     "write_shadow_report",
     "write_snapshot",
 ]
