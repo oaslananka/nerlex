@@ -14,6 +14,7 @@ permissions:
   contents: read
 
 # Manual runs stay independent because non-PR events use unique run IDs.
+# Only a newer run from the same PR supersedes an earlier benchmark run.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
