@@ -15,21 +15,25 @@ compiler families and records:
 - snapshot/compile/calibration/gate setup time;
 - class/token counts and runner metadata.
 
-The benchmark intentionally uses only Nerlex's existing runtime dependencies. It does not
-install NumPy, ONNX Runtime, native extensions, or accelerators.
+The benchmark intentionally uses only Nerlex's existing runtime dependencies. The CI workflow
+uses an exact-pinned, binary-wheel-only dependency set under `benchmarks/requirements.txt`. It
+does not install NumPy, ONNX Runtime, native extensions, or accelerators.
 
 ## Run locally
 
 ```bash
 python -m pip install -e ".[dev]"
-python benchmarks/inference.py --output benchmark.json
+python benchmarks/inference.py
 ```
 
 For a shorter exploratory run:
 
 ```bash
-python benchmarks/inference.py --iterations 100 --warmup 20 --output benchmark.json
+python benchmarks/inference.py --iterations 100 --warmup 20
 ```
+
+The output path is intentionally fixed to `benchmark.json` so CI cannot be redirected to
+an arbitrary filesystem location through benchmark CLI arguments.
 
 ## Interpreting results
 
