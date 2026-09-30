@@ -111,9 +111,10 @@ def test_failing_policy_produces_failed_assessment_not_exception() -> None:
 def test_promotion_rejects_evidence_from_different_runtime_lineage() -> None:
     bundle, _, _ = _evidence(seed="promotion-a")
     _, evaluation, shadow = _evidence(seed="promotion-b")
+    policy = _passing_policy()
 
     with pytest.raises(PromotionError, match="compiler"):
-        assess_promotion(bundle, evaluation, shadow, _passing_policy())
+        assess_promotion(bundle, evaluation, shadow, policy)
 
 
 def test_abstain_all_gate_fails_positive_local_evidence_requirements() -> None:
