@@ -45,13 +45,13 @@ jobs:
         run: uv sync --locked --extra dev --no-install-project --no-build
 
       - name: Ruff
-        run: uv run --no-sync ruff check src tests
+        run: uv run --no-sync --no-build ruff check src tests
 
       - name: Mypy
-        run: uv run --no-sync mypy src
+        run: uv run --no-sync --no-build mypy src
 
       - name: Pytest
-        run: uv run --no-sync pytest -q
+        run: uv run --no-sync --no-build pytest -q
 
       - name: Build
-        run: uv run --no-sync python -m build
+        run: uv run --no-sync --no-build python -m build
