@@ -10,6 +10,7 @@ import statistics
 import sys
 import tempfile
 from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from time import perf_counter_ns
 from typing import Any
@@ -363,6 +364,7 @@ def _trace(
 ) -> TraceRecord:
     class_index = index % len(spec.candidates)
     request_id = UUID(int=index + 1)
+    timestamp = datetime(2026, 1, 1, tzinfo=UTC) + timedelta(microseconds=index)
     unique = " ".join(
         f"unique_{index}_{token_index}"
         for token_index in range(unique_tokens_per_record)
@@ -376,6 +378,7 @@ def _trace(
             request_id=request_id,
             decision_id=spec.decision_id,
             spec_version=spec.version,
+            event_time=timestamp,
             state=state,
         ),
         labels=(
@@ -385,6 +388,7 @@ def _trace(
                 source=LabelSource.OUTCOME,
                 value=f"class-{class_index}",
                 source_id="reference-benchmark",
+                observed_at=timestamp,
             ),
         ),
     )
