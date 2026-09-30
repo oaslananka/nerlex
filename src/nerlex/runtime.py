@@ -233,7 +233,7 @@ class LocalCascadeRuntime:
     ) -> DecisionResult:
         """Execute the configured fallback directly without local inference."""
         started = perf_counter()
-        self._validate_request(request)
+        self.validate_request(request)
         if self.fallback is None:
             raise FallbackExecutionError("Fallback execution requires a configured provider.")
         return self._fallback_result(
