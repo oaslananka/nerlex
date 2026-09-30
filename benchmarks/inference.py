@@ -61,12 +61,6 @@ def _parser() -> argparse.ArgumentParser:
         description="Benchmark Nerlex reference inference without optional native backends."
     )
     parser.add_argument(
-        "--output",
-        type=Path,
-        default=Path("benchmark.json"),
-        help="JSON output path.",
-    )
-    parser.add_argument(
         "--iterations",
         type=int,
         default=1000,
@@ -130,8 +124,8 @@ def main() -> None:
             "No optional native, NumPy, ONNX, or accelerator dependency is used.",
         ],
     }
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(
+    output = Path("benchmark.json")
+    output.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
@@ -294,10 +288,11 @@ def _measure(
     *,
     iterations: int,
     warmup: int,
-) -> dict[str, float | int]:
+) -> dict[str, float | int | None]:
     for _ in range(warmup):
         operation()
 
+    gc.collect()
     was_enabled = gc.isenabled()
     gc.disable()
     try:
@@ -321,7 +316,9 @@ def _measure(
         "p95_us": ordered[p95_index] / 1000.0,
         "min_us": ordered[0] / 1000.0,
         "max_us": ordered[-1] / 1000.0,
-        "throughput_per_second_from_median": 1_000_000_000.0 / median_ns,
+        "throughput_per_second_from_median": (
+            1_000_000_000.0 / median_ns if median_ns > 0 else None
+        ),
     }
 
 
