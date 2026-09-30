@@ -12,6 +12,15 @@ from nerlex.calibration import (
     predict_calibrated,
     write_calibration_artifact,
 )
+from nerlex.canary import (
+    CanaryArtifactError,
+    CanaryDecisionEvidence,
+    CanaryRequestError,
+    CanaryRuntime,
+    CanaryRuntimeError,
+    load_canary_decision_evidence,
+    write_canary_decision_evidence,
+)
 from nerlex.capture import CaptureRun, capture, observe_outcome
 from nerlex.compiler import (
     CentroidCompiler,
@@ -110,8 +119,13 @@ from nerlex.trace import ResultObservation, TraceRecord, export_jsonl, load_json
 __all__ = [
     "CalibratedPrediction",
     "CalibrationError",
+    "CanaryArtifactError",
     "CanaryAssignment",
+    "CanaryDecisionEvidence",
     "CanaryPlan",
+    "CanaryRequestError",
+    "CanaryRuntime",
+    "CanaryRuntimeError",
     "Candidate",
     "CandidateMode",
     "CaptureRun",
@@ -182,6 +196,7 @@ __all__ = [
     "fit_empirical_risk_gate",
     "fit_temperature",
     "load_calibration_artifact",
+    "load_canary_decision_evidence",
     "load_canary_plan",
     "load_compiler_artifact",
     "load_evaluation_report",
@@ -196,6 +211,7 @@ __all__ = [
     "validate_request",
     "verify_snapshot",
     "write_calibration_artifact",
+    "write_canary_decision_evidence",
     "write_canary_plan",
     "write_compiler_artifact",
     "write_evaluation_report",
