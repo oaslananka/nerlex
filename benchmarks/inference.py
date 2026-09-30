@@ -367,7 +367,7 @@ def _trace(
     class_index = index % len(spec.candidates)
     request_id = UUID(int=index + 1)
     unique = " ".join(
-        f"unique-{index}-{token_index}"
+        f"unique_{index}_{token_index}"
         for token_index in range(unique_tokens_per_record)
     )
     state = (
@@ -395,7 +395,7 @@ def _trace(
 
 def _query_state(*, class_index: int, unique_tokens_per_record: int) -> str:
     unknown = " ".join(
-        f"query-unknown-{index}"
+        f"query_unknown_{index}"
         for index in range(unique_tokens_per_record)
     )
     return (
