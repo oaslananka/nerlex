@@ -31,6 +31,13 @@ dependencies = [
   "pydantic>=2.10,<3",
 ]
 
+[project.urls]
+Homepage = "https://github.com/oaslananka/nerlex"
+Repository = "https://github.com/oaslananka/nerlex"
+Issues = "https://github.com/oaslananka/nerlex/issues"
+Changelog = "https://github.com/oaslananka/nerlex/blob/main/CHANGELOG.md"
+Security = "https://github.com/oaslananka/nerlex/security/policy"
+
 [project.optional-dependencies]
 dev = [
   "build>=1.2,<2",
