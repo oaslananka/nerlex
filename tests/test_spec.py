@@ -52,6 +52,11 @@ def test_dynamic_choice_requires_request_candidates() -> None:
 
 
 def test_boolean_decision_rejects_choice_candidates() -> None:
+    candidates = (
+        Candidate(key="yes", description="Eligible."),
+        Candidate(key="no", description="Not eligible."),
+    )
+
     with pytest.raises(ValueError, match="Boolean decisions"):
         DecisionSpec(
             decision_id="approval",
@@ -59,8 +64,5 @@ def test_boolean_decision_rejects_choice_candidates() -> None:
             kind=DecisionKind.BOOLEAN,
             description="Decide whether this case is eligible.",
             candidate_mode=CandidateMode.STATIC,
-            candidates=(
-                Candidate(key="yes", description="Eligible."),
-                Candidate(key="no", description="Not eligible."),
-            ),
+            candidates=candidates,
         )
