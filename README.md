@@ -68,23 +68,23 @@ Not in v0.1: dashboard, hosted SaaS, Kubernetes, custom foundation-model trainin
 
 ## Development setup
 
-Requires Python 3.12+.
+Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/). The committed `uv.lock`
+is the reproducible contributor/CI environment; package dependency ranges remain in
+`pyproject.toml` for library consumers.
 
 ```bash
 git clone https://github.com/oaslananka/nerlex.git
 cd nerlex
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-python -m pip install -e ".[dev]"
+uv sync --locked --extra dev
 ```
 
 Run the baseline checks:
 
 ```bash
-ruff check src tests
-mypy src
-pytest -q
-python -m build
+uv run ruff check src tests
+uv run mypy src
+uv run pytest -q
+uv run python -m build
 ```
 
 Run the local/fallback example:
