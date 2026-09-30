@@ -227,8 +227,10 @@ def test_manifest_rejects_unsafe_split_filename() -> None:
     payload = snapshot.manifest.model_dump(mode="json")
     payload["splits"]["train"]["filename"] = "../train.jsonl"
 
+    manifest_type = type(snapshot.manifest)
+
     with pytest.raises(ValueError, match="Unexpected filename"):
-        type(snapshot.manifest).model_validate(payload)
+        manifest_type.model_validate(payload)
 
 
 def test_write_snapshot_is_idempotent_and_refuses_modified_existing_file(tmp_path) -> None:
