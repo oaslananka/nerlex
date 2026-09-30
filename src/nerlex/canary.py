@@ -22,14 +22,12 @@ from nerlex.runtime import (
     LocalCascadeRuntime,
     RuntimeBundle,
     RuntimeConfig,
-    RuntimeRequestError,
 )
 from nerlex.spec import (
     DecisionRequest,
     DecisionResult,
     DecisionRoute,
     StrictModel,
-    validate_request,
 )
 
 CANARY_DECISION_SCHEMA_VERSION: Literal[1] = 1
@@ -145,10 +143,7 @@ class CanaryRuntime:
         assignment_key: str,
     ) -> CanaryDecisionEvidence:
         request = DecisionRequest.model_validate(request)
-        try:
-            validate_request(self.bundle.compiler.decision_spec, request)
-        except ValueError as exc:
-            raise RuntimeRequestError(str(exc)) from exc
+        self._runtime.validate_request(request)
 
         try:
             assignment = assign_canary(

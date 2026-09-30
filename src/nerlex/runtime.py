@@ -191,7 +191,7 @@ class LocalCascadeRuntime:
 
     def decide(self, request: DecisionRequest) -> DecisionResult:
         started = perf_counter()
-        self._validate_request(request)
+        self.validate_request(request)
 
         try:
             local = predict_calibrated(
@@ -306,7 +306,8 @@ class LocalCascadeRuntime:
             abstain_reason=abstain_reason,
         )
 
-    def _validate_request(self, request: DecisionRequest) -> None:
+    def validate_request(self, request: DecisionRequest) -> None:
+        """Validate a request against this runtime's compiled DecisionSpec."""
         try:
             validate_request(self.bundle.compiler.decision_spec, request)
         except ValueError as exc:
