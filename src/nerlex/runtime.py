@@ -219,6 +219,36 @@ class LocalCascadeRuntime:
                 abstain_reason=abstain_reason,
             )
 
+        return self._fallback_result(
+            request,
+            started,
+            abstain_reason=abstain_reason,
+        )
+
+    def decide_fallback(
+        self,
+        request: DecisionRequest,
+        *,
+        reason: str = "forced_fallback",
+    ) -> DecisionResult:
+        """Execute the configured fallback directly without local inference."""
+        started = perf_counter()
+        self._validate_request(request)
+        if self.fallback is None:
+            raise FallbackExecutionError("Fallback execution requires a configured provider.")
+        return self._fallback_result(
+            request,
+            started,
+            abstain_reason=reason,
+        )
+
+    def _fallback_result(
+        self,
+        request: DecisionRequest,
+        started: float,
+        *,
+        abstain_reason: str,
+    ) -> DecisionResult:
         fallback = self._run_fallback(request)
         self._validate_fallback_decision(fallback)
 
