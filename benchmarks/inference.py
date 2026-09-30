@@ -406,10 +406,11 @@ def _query_state(*, class_index: int, unique_tokens_per_record: int) -> str:
 
 def _model_stats(artifact: CompilerArtifact) -> dict[str, int]:
     model = artifact.model
-    if hasattr(model, "vocabulary"):
-        token_count = len(model.vocabulary)
-    else:
-        token_count = len(model.idf)
+    token_count = (
+        len(model.vocabulary)
+        if hasattr(model, "vocabulary")
+        else len(model.idf)
+    )
     return {
         "class_count": len(model.classes),
         "token_count": token_count,
