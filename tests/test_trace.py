@@ -10,6 +10,7 @@ from nerlex.spec import (
     DecisionResult,
     DecisionRoute,
     DecisionSpec,
+    LabelObservation,
     LabelSource,
 )
 from nerlex.store import SQLiteTraceStore
