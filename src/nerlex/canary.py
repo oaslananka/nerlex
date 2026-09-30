@@ -24,7 +24,13 @@ from nerlex.runtime import (
     RuntimeConfig,
     RuntimeRequestError,
 )
-from nerlex.spec import DecisionRequest, DecisionResult, DecisionRoute, StrictModel, validate_request
+from nerlex.spec import (
+    DecisionRequest,
+    DecisionResult,
+    DecisionRoute,
+    StrictModel,
+    validate_request,
+)
 
 CANARY_DECISION_SCHEMA_VERSION: Literal[1] = 1
 CANARY_RUNTIME_VERSION: Literal["1"] = "1"

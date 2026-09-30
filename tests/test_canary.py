@@ -14,7 +14,6 @@ from nerlex.canary import (
     load_canary_decision_evidence,
     write_canary_decision_evidence,
 )
-from nerlex.dataset import DatasetSplit
 from nerlex.evaluation import EmpiricalRiskGateConfig, evaluate, fit_empirical_risk_gate
 from nerlex.promotion import PromotionPolicy, assess_promotion, create_canary_plan
 from nerlex.runtime import FallbackDecision, FallbackExecutionError, RuntimeBundle
@@ -188,9 +187,11 @@ def test_invalid_assignment_key_fails_before_control_execution() -> None:
         return _control_decision(request)
 
     request = _request()
-    with CanaryRuntime(bundle, assessment, plan, control=control) as runtime:
-        with pytest.raises(CanaryRequestError, match="assignment key"):
-            runtime.decide(request, assignment_key="")
+    with (
+        CanaryRuntime(bundle, assessment, plan, control=control) as runtime,
+        pytest.raises(CanaryRequestError, match="assignment key"),
+    ):
+        runtime.decide(request, assignment_key="")
 
     assert calls == 0
 
@@ -202,14 +203,16 @@ def test_control_failure_remains_explicit() -> None:
         raise RuntimeError("provider failed")
 
     request = _request()
-    with CanaryRuntime(
-        bundle,
-        assessment,
-        plan,
-        control=failing_control,
-    ) as runtime:
-        with pytest.raises(FallbackExecutionError, match="failed"):
-            runtime.decide(request, assignment_key="tenant-1")
+    with (
+        CanaryRuntime(
+            bundle,
+            assessment,
+            plan,
+            control=failing_control,
+        ) as runtime,
+        pytest.raises(FallbackExecutionError, match="failed"),
+    ):
+        runtime.decide(request, assignment_key="tenant-1")
 
 
 def test_canary_decision_evidence_round_trip_and_tamper_detection(
