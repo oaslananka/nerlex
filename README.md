@@ -58,6 +58,7 @@ The first milestone intentionally stays small:
 - immutable compiled artifacts
 - offline shadow replay
 - local decision with explicit fallback
+- evidence-gated promotion assessment and deterministic canary planning
 - CPU-only reproducible demo
 
 Not in v0.1: dashboard, hosted SaaS, Kubernetes, custom foundation-model training, autonomous retraining, or autonomous production promotion.
@@ -110,6 +111,7 @@ The initial public contracts live in:
 - `nerlex.evaluation` — empirical gates, sealed metrics, risk/coverage and AURC
 - `nerlex.runtime` — calibrated local decisions with explicit abstention and provider-neutral fallback
 - `nerlex.shadow` — deterministic side-effect-free replay evidence separating teacher fidelity from truth accuracy
+- `nerlex.promotion` — evidence-gated promotion assessments and immutable deterministic canary plans
 
 These APIs are still pre-1.0 and may change while the v0.1 lifecycle is built.
 
