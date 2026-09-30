@@ -13,6 +13,12 @@ on:
 permissions:
   contents: read
 
+# Manual runs stay independent because non-PR events use unique run IDs.
+# Only a newer run from the same PR supersedes an earlier benchmark run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   benchmark:
     runs-on: ubuntu-latest
@@ -39,7 +45,7 @@ jobs:
         run: python benchmarks/inference.py
 
       - name: Upload benchmark result
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: reference-inference-benchmark
           path: benchmark.json

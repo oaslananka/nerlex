@@ -9,6 +9,11 @@ on:
 permissions:
   contents: read
 
+# PR runs share a stable group; push runs use unique run IDs and are never superseded.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   quality:
     runs-on: ubuntu-latest
