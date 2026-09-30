@@ -350,9 +350,9 @@ def _macro_f1(
     rows: tuple[_PredictionRow, ...],
     classes: tuple[str, ...],
 ) -> float:
-    true_positive = {class_name: 0 for class_name in classes}
-    false_positive = {class_name: 0 for class_name in classes}
-    false_negative = {class_name: 0 for class_name in classes}
+    true_positive = dict.fromkeys(classes, 0)
+    false_positive = dict.fromkeys(classes, 0)
+    false_negative = dict.fromkeys(classes, 0)
 
     for row in rows:
         if row.selected == row.label:
