@@ -14,6 +14,7 @@ from nerlex.hashing import canonical_json, sha256_hex
 from nerlex.promotion import CanaryPlan, PromotionAssessment
 from nerlex.runtime import RuntimeBundle
 from nerlex.spec import (
+    Candidate,
     DecisionKind,
     DecisionRoute,
     LabelObservation,
@@ -513,7 +514,7 @@ def _resolve_truth(
 
 def _validate_value(
     kind: DecisionKind,
-    candidates: tuple,
+    candidates: tuple[Candidate, ...],
     value: str | bool,
     request_id: UUID,
     role: str,
