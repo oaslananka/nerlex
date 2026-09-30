@@ -10,11 +10,14 @@ from nerlex.compiler import CentroidConfig, MultinomialNBConfig
 
 def test_measure_reports_expected_statistics(monkeypatch: pytest.MonkeyPatch) -> None:
     ticks = iter((0, 1_000, 2_000, 4_000, 5_000, 8_000, 9_000, 13_000))
+    collected: list[bool] = []
     monkeypatch.setattr(benchmark, "perf_counter_ns", lambda: next(ticks))
+    monkeypatch.setattr(benchmark.gc, "collect", lambda: collected.append(True) or 0)
     gc_was_enabled = gc.isenabled()
 
     metrics = benchmark._measure(lambda: None, iterations=4, warmup=0)
 
+    assert collected == [True]
     assert gc.isenabled() is gc_was_enabled
     assert metrics["iterations"] == 4
     assert metrics["median_us"] == pytest.approx(2.5)
