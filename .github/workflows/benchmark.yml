@@ -1,1 +1,43 @@
-name: Reference inference benchmark\n\non:\n  workflow_dispatch:\n  pull_request:\n    paths:\n      - "benchmarks/**"\n      - ".github/workflows/benchmark.yml"\n      - "src/nerlex/compiler.py"\n      - "src/nerlex/calibration.py"\n      - "src/nerlex/runtime.py"\n\npermissions:\n  contents: read\n\njobs:\n  benchmark:\n    runs-on: ubuntu-latest\n\n    steps:\n      - name: Checkout\n        uses: actions/checkout@v5\n\n      - name: Set up Python\n        uses: actions/setup-python@v6\n        with:\n          python-version: "3.12"\n\n      - name: Install\n        run: python -m pip install -e ".[dev]"\n\n      - name: Ruff benchmark harness\n        run: ruff check benchmarks\n\n      - name: Run reference benchmark\n        run: python benchmarks/inference.py --output benchmark.json\n\n      - name: Upload benchmark result\n        uses: actions/upload-artifact@v4\n        with:\n          name: reference-inference-benchmark\n          path: benchmark.json\n          if-no-files-found: error\n
+name: Reference inference benchmark
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "benchmarks/**"
+      - ".github/workflows/benchmark.yml"
+      - "src/nerlex/compiler.py"
+      - "src/nerlex/calibration.py"
+      - "src/nerlex/runtime.py"
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: python -m pip install -e ".[dev]"
+
+      - name: Ruff benchmark harness
+        run: ruff check benchmarks
+
+      - name: Run reference benchmark
+        run: python benchmarks/inference.py --output benchmark.json
+
+      - name: Upload benchmark result
+        uses: actions/upload-artifact@v4
+        with:
+          name: reference-inference-benchmark
+          path: benchmark.json
+          if-no-files-found: error
