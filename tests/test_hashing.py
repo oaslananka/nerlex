@@ -65,8 +65,11 @@ def test_extension_types_hash_is_deterministic() -> None:
             "text": "Türkçe",
         }
 
-    assert canonical_json(build()) == canonical_json(build())
-    assert sha256_hex(build()) == "5a6d8d2035c5a9bfcdcaef5309d2adf102c98bbccc7da0b643badea00a709f9a"
+    first = build()
+    second = build()
+    assert first is not second
+    assert canonical_json(first) == canonical_json(second)
+    assert sha256_hex(first) == "5a6d8d2035c5a9bfcdcaef5309d2adf102c98bbccc7da0b643badea00a709f9a"
 
 
 @pytest.mark.parametrize(
