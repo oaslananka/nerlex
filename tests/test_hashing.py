@@ -4,6 +4,7 @@ from datetime import UTC, date, datetime, timedelta, timezone
 from uuid import UUID
 
 import pytest
+from pydantic import BaseModel
 
 from nerlex.hashing import canonical_json, sha256_hex
 
@@ -90,3 +91,50 @@ def test_canonical_json_rejects_nested_unsupported_values() -> None:
 def test_sha256_hex_rejects_unsupported_types() -> None:
     with pytest.raises(TypeError, match="not JSON serializable"):
         sha256_hex({"unsupported": object()})
+
+
+@pytest.mark.parametrize(
+    "value",
+    [float("nan"), float("inf"), float("-inf")],
+    ids=["nan", "infinity", "-infinity"],
+)
+def test_canonical_json_rejects_non_finite_floats(value: float) -> None:
+    with pytest.raises(ValueError, match="Non-finite float"):
+        canonical_json({"score": value})
+
+
+@pytest.mark.parametrize(
+    "value",
+    [float("nan"), float("inf"), float("-inf")],
+    ids=["nan", "infinity", "-infinity"],
+)
+def test_sha256_hex_rejects_non_finite_floats(value: float) -> None:
+    with pytest.raises(ValueError, match="Non-finite float"):
+        sha256_hex({"score": value})
+
+
+def test_canonical_json_rejects_nested_non_finite_values() -> None:
+    with pytest.raises(ValueError, match="Non-finite float"):
+        canonical_json({"outer": [1.0, {"score": float("inf")}]})
+
+    with pytest.raises(ValueError, match="Non-finite float"):
+        canonical_json((1.5, float("-inf")))
+
+
+def test_canonical_json_rejects_non_finite_values_in_model_data() -> None:
+    class ScoreModel(BaseModel):
+        score: float
+
+    with pytest.raises(ValueError, match="Non-finite float"):
+        canonical_json(ScoreModel(score=float("nan")))
+
+    with pytest.raises(ValueError, match="Non-finite float"):
+        sha256_hex(ScoreModel(score=float("-inf")))
+
+
+def test_canonical_json_preserves_finite_floats() -> None:
+    value = {"score": 0.5, "counts": [1, 2.25, -3.5], "nested": {"tiny": 1e-09}}
+
+    assert canonical_json(value) == (
+        '{"counts":[1,2.25,-3.5],"nested":{"tiny":1e-09},"score":0.5}'
+    )
