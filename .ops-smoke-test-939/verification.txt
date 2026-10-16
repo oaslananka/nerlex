@@ -1,0 +1,2 @@
+Ops GitHub prepare_pull_request smoke test.
+Expected two files in one feature commit.
