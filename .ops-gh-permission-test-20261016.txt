@@ -1,0 +1,1 @@
+Ops test only: GitHub read/write capability validation on 2026-10-16. Do not merge.
